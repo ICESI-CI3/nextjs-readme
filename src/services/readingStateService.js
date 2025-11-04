@@ -1,8 +1,10 @@
 import axios from "axios";
 import { URL_BASE } from "../constants/global";
 
+const getAuthToken = () => (typeof window === "undefined" ? null : localStorage.getItem("token"));
+
 export const createReadingState = async (readingStateData) => {
-    const token = localStorage.getItem("token");
+    const token = getAuthToken();
     if (!token) return null;
 
     const { data } = await axios.post(`${URL_BASE}/reading-states`, readingStateData, {
@@ -12,7 +14,7 @@ export const createReadingState = async (readingStateData) => {
 };
 
 export const getAllReadingStates = async () => {
-    const token = localStorage.getItem("token");
+    const token = getAuthToken();
     if (!token) return null;
 
     const { data } = await axios.get(`${URL_BASE}/reading-states`, {
@@ -22,30 +24,30 @@ export const getAllReadingStates = async () => {
 };
 
 export const getReadingStatesByUser = async (userId) => {
-    const token = localStorage.getItem("token");
+    const token = getAuthToken();
     if (!token) return null;
 
-    const { data } = await axios.get(`${URL_BASE}/reading-states/user/${userId}`,{
+    const { data } = await axios.get(`${URL_BASE}/reading-states/user/${userId}`, {
         headers: { Authorization: `Bearer ${token}` },
     });
     return data;
 };
 
 export const updateReadingState = async (id, updateData) => {
-    const token = localStorage.getItem("token");
+    const token = getAuthToken();
     if (!token) return null;
 
-    const { data } = await axios.patch(`${URL_BASE}/reading-states/${id}`,updateData,{
+    const { data } = await axios.patch(`${URL_BASE}/reading-states/${id}`, updateData, {
         headers: { Authorization: `Bearer ${token}` },
     });
     return data;
 };
 
 export const deleteReadingState = async (id) => {
-    const token = localStorage.getItem("token");
+    const token = getAuthToken();
     if (!token) return null;
-    
-    const { data } = await axios.delete(`${URL_BASE}/api/v1/reading-states/${id}`,{
+
+    const { data } = await axios.delete(`${URL_BASE}/reading-states/${id}`, {
         headers: { Authorization: `Bearer ${token}` },
     });
     return data;

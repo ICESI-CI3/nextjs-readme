@@ -2,8 +2,46 @@ import axios from "axios";
 import { URL_BASE } from "../constants/global";
 
 
+const buildUserPayload = (userData, defaults = {}) => {
+  const name = userData.name ?? userData.fullName ?? defaults.name;
+  const username =
+    userData.username ??
+    userData.userName ??
+    defaults.username ??
+    (name ? name.replace(/\s+/g, '').toLowerCase() : undefined);
+
+  const email = userData.email ?? defaults.email;
+  const password = userData.password ?? defaults.password;
+  const role = userData.role ?? defaults.role ?? 'reader';
+
+  const resolvedUsernameRaw =
+    username ??
+    (typeof email === 'string' ? email.split('@')[0] : undefined);
+  const resolvedUsername = resolvedUsernameRaw
+    ? String(resolvedUsernameRaw).trim().toLowerCase().replace(/\s+/g, '')
+    : undefined;
+
+  const payload = {
+    username: resolvedUsername,
+    email,
+    password,
+    role,
+  };
+
+  if (name) {
+    payload.name = name;
+  }
+
+  if (!payload.username || !payload.email || !payload.password) {
+    throw new Error('Missing required user fields (username, email, or password).');
+  }
+
+  return payload;
+};
+
 export const registerUser = async (userData) => {
-  const res = await axios.post(`${URL_BASE}/users/register`, userData);
+  const payload = buildUserPayload(userData);
+  const res = await axios.post(`${URL_BASE}/users/register`, payload);
   console.log("User registered:", res.data);
   return res.data;
 };
@@ -47,7 +85,9 @@ export const createUser = async (userData) => {
     const token = localStorage.getItem("token");
     if (!token) return null;
 
-    const res = await axios.post(`${URL_BASE}/users`, userData, {
+    const payload = buildUserPayload(userData, { role: 'reader' });
+
+    const res = await axios.post(`${URL_BASE}/users`, payload, {
         headers: { Authorization: `Bearer ${token}` },
     });
     console.log("User created:", res.data);
