@@ -104,7 +104,7 @@ const ReadingLogPage = () => {
       setError(null);
       try {
         const [readingStates, bookList] = await Promise.all([
-          getReadingStatesByUser(user.id),
+          getReadingStatesByUser(String(user.id)),
           isAdmin ? getAllBooks() : Promise.resolve(null),
         ]);
 
