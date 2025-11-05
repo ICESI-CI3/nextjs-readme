@@ -59,6 +59,19 @@ export const loginUser = async (credentials) => {
   return res.data;
 };
 
+export const logoutUser = async () => {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+  if (!token) return null;
+
+  const res = await axios.post(
+    `${URL_BASE}/users/logout`,
+    null,
+    { headers: { Authorization: `Bearer ${token}` } },
+  );
+  console.log('User logged out:', res.data);
+  return res.data;
+};
+
 export const getUsers = async () => {
     const token = localStorage.getItem("token");
     if (!token) return null;

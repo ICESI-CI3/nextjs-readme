@@ -33,8 +33,7 @@ const Sidebar = () => {
   return (
     <aside className="flex h-full w-64 flex-col border-r border-slate-200 bg-white">
       <div className="px-6 py-5">
-        <h1 className="text-xl font-semibold text-slate-800">Compunet Reads</h1>
-        <p className="text-xs text-slate-400">Reading progress tracker</p>
+        <h1 className="text-xl font-semibold text-slate-800">Read.Me</h1>
       </div>
       <nav className="flex-1 px-3 py-2">
         <ul className="space-y-1 text-sm">
