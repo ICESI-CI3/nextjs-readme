@@ -1,7 +1,7 @@
 'use client';
 
 import { create } from 'zustand';
-import { loginUser, getProfile } from '@/services/userService';
+import { loginUser, getProfile, logoutUser } from '@/services/userService';
 
 type AuthUser = {
   id?: string | number;
@@ -24,7 +24,7 @@ type AuthState = {
   initialized: boolean;
   initialize: () => Promise<void>;
   login: (credentials: Credentials) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   setUser: (user: AuthUser | null) => void;
 };
 
@@ -163,19 +163,26 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       throw new Error(message);
     }
   },
-  logout() {
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem(TOKEN_KEY);
+  async logout() {
+    set({ status: 'loading', error: null });
+    try {
+      await logoutUser();
+    } catch (error) {
+      console.error('Logout request failed', error);
+    } finally {
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem(TOKEN_KEY);
+      }
+      setAuthCookie(null);
+      setRoleCookie(null);
+      set({
+        token: null,
+        user: null,
+        status: 'unauthenticated',
+        error: null,
+        initialized: true,
+      });
     }
-    setAuthCookie(null);
-    setRoleCookie(null);
-    set({
-      token: null,
-      user: null,
-      status: 'unauthenticated',
-      error: null,
-      initialized: true,
-    });
   },
   setUser(user) {
     const role = user?.role ? String(user.role) : null;
