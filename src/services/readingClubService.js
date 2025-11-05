@@ -5,7 +5,14 @@ export const createReadingClub = async (clubData) => {
     const token = localStorage.getItem("token");
     if (!token) return null;
 
-    const response = await axios.post(`${URL_BASE}/reading-clubs`, clubData, {
+    const payload = Object.entries(clubData ?? {}).reduce((acc, [key, value]) => {
+        if (value !== undefined && value !== null && value !== '') {
+            acc[key] = value;
+        }
+        return acc;
+    }, {});
+
+    const response = await axios.post(`${URL_BASE}/reading-clubs`, payload, {
         headers: { Authorization: `Bearer ${token}` },
     });
     return response.data;

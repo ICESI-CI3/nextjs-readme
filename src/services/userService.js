@@ -111,7 +111,20 @@ export const updateUser = async (id, userData) => {
     const token = localStorage.getItem("token");
     if (!token) return null;
 
-    const res = await axios.put(`${URL_BASE}/users/${id}`, userData, {
+    const payload = { ...userData };
+    if (typeof payload.role === 'string') {
+        const normalizedRole = payload.role.trim().toLowerCase();
+        if (normalizedRole === 'moderator') {
+            // Backend only knows about reader/admin; moderators are derived on the frontend.
+            payload.role = 'reader';
+        } else if (normalizedRole === 'admin' || normalizedRole === 'reader') {
+            payload.role = normalizedRole;
+        } else {
+            delete payload.role;
+        }
+    }
+
+    const res = await axios.put(`${URL_BASE}/users/${id}`, payload, {
         headers: { Authorization: `Bearer ${token}` },
     });
     console.log("User updated:", res.data);

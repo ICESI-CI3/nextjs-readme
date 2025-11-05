@@ -38,7 +38,6 @@ const AdminUsersPage = () => {
   });
   const roleOptions = [
     { value: 'reader', label: 'Reader' },
-    { value: 'moderator', label: 'Moderator' },
     { value: 'admin', label: 'Admin' },
   ];
 
@@ -135,6 +134,10 @@ const AdminUsersPage = () => {
     if ((target.role ?? 'reader') === newRole) return;
     if (user?.id && String(user.id) === String(target.id)) {
       setError('You cannot change your own role.');
+      return;
+    }
+    if (newRole === 'moderator') {
+      setInfo('Moderators are readers who run clubs they create. Update the user to admin only if they need elevated access.');
       return;
     }
 
@@ -327,7 +330,8 @@ const AdminUsersPage = () => {
             <tbody className="divide-y divide-slate-200 text-slate-600">
               {filteredUsers.map((item) => {
                 const isActive = resolveActiveState(item);
-                const roleValue = (item.role ?? 'reader').toString().toLowerCase();
+                const rawRoleValue = (item.role ?? 'reader').toString().toLowerCase();
+                const roleValue = rawRoleValue === 'moderator' ? 'reader' : rawRoleValue;
                 const isSelf = user?.id && item.id ? String(user.id) === String(item.id) : false;
                 return (
                   <tr key={(item.id ?? item.email ?? '').toString()}>
