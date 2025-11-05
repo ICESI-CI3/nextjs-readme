@@ -30,7 +30,7 @@ const LoginPage = () => {
   };
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-50 via-white to-slate-100 px-4">
+    <main className="flex min-h-screen items-center justify-center bg-linear-to-br from-blue-50 via-white to-slate-100 px-4">
       <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-8 shadow-lg">
         <div className="mb-6 text-center">
           <h1 className="text-2xl font-semibold text-slate-900">Compunet Reads</h1>

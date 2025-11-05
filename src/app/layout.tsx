@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'Compunet Reading Tracker',
+  title: 'Read.Me - Your Personal Reading Tracker',
   description: 'Manage books, clubs, reviews, and reading progress.',
 };
 

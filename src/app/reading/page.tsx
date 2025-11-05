@@ -53,6 +53,22 @@ const statusOptions = [
   { value: 'completed', label: 'Completed' },
 ];
 
+const toUiStatus = (status: unknown): string => {
+  if (typeof status !== 'string') return 'reading';
+  const normalized = status.trim().toLowerCase();
+  if (!normalized) return 'reading';
+  if (normalized === 'pending' || normalized === 'to-read' || normalized === 'to read') {
+    return 'to-read';
+  }
+  if (normalized === 'read' || normalized === 'completed' || normalized === 'complete') {
+    return 'completed';
+  }
+  if (normalized === 'reading') {
+    return 'reading';
+  }
+  return 'reading';
+};
+
 const defaultNewState = {
   bookId: '',
   status: 'reading',
@@ -88,7 +104,7 @@ const ReadingLogPage = () => {
       setError(null);
       try {
         const [readingStates, bookList] = await Promise.all([
-          getReadingStatesByUser(user.id),
+          getReadingStatesByUser(String(user.id)),
           isAdmin ? getAllBooks() : Promise.resolve(null),
         ]);
 
@@ -108,7 +124,7 @@ const ReadingLogPage = () => {
               title: state.title,
               authors: state.authors,
               description: state.description,
-              status: state.status,
+              status: toUiStatus(state.status),
               notes: state.notes,
               createdAt: state.createdAt,
               updatedAt: state.updatedAt,
@@ -119,6 +135,9 @@ const ReadingLogPage = () => {
 
         const remoteStates = normalizedStates.map((state) => ({
           ...state,
+          status: toUiStatus(
+            (state as { status?: unknown }).status ?? (state as { state?: unknown }).state,
+          ),
           origin: 'remote' as const,
         }));
 
@@ -141,7 +160,7 @@ const ReadingLogPage = () => {
           const key = state.id ? String(state.id) : state.bookId ? String(state.bookId) : null;
           if (key) {
             nextEdits[key] = {
-              status: (state.status ?? 'reading').toString(),
+              status: toUiStatus(state.status),
               notes: state.notes ? String(state.notes) : '',
             };
           }
@@ -196,13 +215,21 @@ const ReadingLogPage = () => {
       });
       const created = Array.isArray(response) ? response[0] : response?.readingState ?? response ?? null;
       if (created) {
-        setStates((prev) => [{ ...(created as ReadingState), origin: 'remote' }, ...prev]);
+        const createdStatus = toUiStatus(
+          (created as { status?: unknown }).status ?? (created as { state?: unknown }).state ?? newState.status,
+        );
+        const normalizedCreated: ReadingState = {
+          ...(created as ReadingState),
+          status: createdStatus,
+          origin: 'remote',
+        };
+        setStates((prev) => [normalizedCreated, ...prev]);
         const key = created.id ? String(created.id) : created.bookId ? String(created.bookId) : null;
         if (key) {
           setEdits((prev) => ({
             ...prev,
             [key]: {
-              status: (created.status ?? newState.status).toString(),
+              status: createdStatus,
               notes: created.notes ? String(created.notes) : newState.notes,
             },
           }));
@@ -265,7 +292,7 @@ const ReadingLogPage = () => {
           );
         }
       } else {
-        await updateReadingState(state.id, {
+        await updateReadingState(String(state.id), {
           status: changes.status,
           notes: changes.notes,
         });
@@ -302,7 +329,7 @@ const ReadingLogPage = () => {
         }
         deleteLocalReadingState(String(user.id), String(state.id));
       } else {
-        await deleteReadingState(state.id);
+        await deleteReadingState(String(state.id));
       }
       setStates((prev) => prev.filter((item) => item.id !== state.id));
       setEdits((prev) => {

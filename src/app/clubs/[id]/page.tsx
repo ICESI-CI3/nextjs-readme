@@ -38,8 +38,8 @@ type Club = {
   id?: string | number;
   name?: string;
   description?: string;
-  currentBook?: { title?: string; author?: string };
-  book?: string;
+  currentBook?: { title?: string; author?: string } | null;
+  book?: string | null;
   members?: ClubMember[] | (string | number)[];
   meetingCadence?: string;
   ownerId?: string | number;
@@ -146,45 +146,6 @@ const ClubDetailPage = () => {
     setDiscussion((prev) => ({ ...prev, [key]: value }));
   };
 
-  const handleDiscussionSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!club?.id || !user?.id) return;
-    if (!isMember()) {
-      setError('Join the club to start a discussion.');
-      return;
-    }
-    const topic = discussion.topic.trim();
-    const message = discussion.message.trim();
-    if (!topic || !message) {
-      setError('Please provide a topic and a message to start the discussion.');
-      return;
-    }
-    setProcessing(true);
-    setError(null);
-    setSuccess(null);
-    try {
-      const response = await startDebate(club.id, {
-        topic,
-        message,
-      });
-      const created = Array.isArray(response) ? response[0] : response?.debate ?? response ?? null;
-      setClub((prev) =>
-        prev
-          ? {
-              ...prev,
-              debates: created ? [created, ...(prev.debates ?? [])] : prev.debates ?? [],
-            }
-          : prev,
-      );
-      setDiscussion({ topic: '', message: '' });
-      setSuccess('Discussion created.');
-    } catch (err) {
-      console.error('Unable to start debate', err);
-      setError('Unable to start a discussion right now.');
-    } finally {
-      setProcessing(false);
-    }
-  };
 
   const handleReplySubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -254,8 +215,8 @@ const ClubDetailPage = () => {
               ...prev,
               members: [
                 ...(Array.isArray(prev.members) ? prev.members : []),
-                { id: user.id, name: user.name },
-              ],
+                user.id,
+              ] as ClubMember[] | (string | number)[],
             }
           : prev,
       );
@@ -286,7 +247,7 @@ const ClubDetailPage = () => {
                   return member?.id?.toString() !== user.id?.toString();
                 }
                 return String(member) !== String(user.id);
-              }),
+              }) as ClubMember[] | (string | number)[],
             }
           : prev,
       );
@@ -339,7 +300,11 @@ const ClubDetailPage = () => {
 
   const handleDiscussionSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!club?.id) return;
+    if (!club?.id || !user?.id) return;
+    if (!isMember()) {
+      setError('Join the club to start a discussion.');
+      return;
+    }
     if (!discussion.topic.trim() || !discussion.message.trim()) {
       setError('Provide both a topic and a message to start the discussion.');
       return;

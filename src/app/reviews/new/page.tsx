@@ -136,16 +136,19 @@ const ReviewCreatePage = () => {
             value={form.bookId}
             onChange={(event) => updateField('bookId', event.target.value)}
             required
+            data-testid="book-select"
             options={[
               { value: '', label: loadingBooks ? 'Loading books…' : 'Select a book' },
               ...books.map((book) => ({ value: book.id, label: book.title })),
             ]}
           />
+
           <Select
             label="Rating"
             value={form.rating}
             onChange={(event) => updateField('rating', event.target.value)}
             required
+            data-testid="rating-select"
             options={[
               { value: '5', label: '5 - Excellent' },
               { value: '4', label: '4 - Good' },

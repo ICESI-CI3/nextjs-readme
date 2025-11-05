@@ -26,6 +26,7 @@ describe('Logout flow', () => {
     cy.url().should('include', '/login');
 
     cy.window().then((win) => {
+      // eslint-disable-next-line @typescript-eslint/no-unused-expressions
       expect(win.localStorage.getItem('token')).to.be.null;
     });
 
