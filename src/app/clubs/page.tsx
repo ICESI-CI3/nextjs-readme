@@ -23,7 +23,7 @@ type Club = {
   description?: string;
   currentBook?: { id?: string | number; title?: string };
   book?: string;
-  members?: ClubMember[] | (string | number)[];
+  members?: (ClubMember | string | number)[];
   ownerId?: string | number;
 };
 
@@ -104,7 +104,7 @@ const ClubsPage = () => {
                 members: [
                   ...(Array.isArray(item.members) ? item.members : []),
                   { id: user.id, name: user.name },
-                ],
+                ] as (ClubMember | string | number)[],
               }
             : item,
         ),
@@ -133,11 +133,11 @@ const ClubsPage = () => {
             ? {
                 ...item,
                 members: (Array.isArray(item.members) ? item.members : []).filter((member) => {
-                  if (typeof member === 'object') {
-                    return member?.id?.toString() !== user.id?.toString();
+                  if (typeof member === 'object' && member !== null && 'id' in member) {
+                    return member.id?.toString() !== user.id?.toString();
                   }
                   return String(member) !== String(user.id);
-                }),
+                }) as (ClubMember | string | number)[],
               }
             : item,
         ),
@@ -238,7 +238,7 @@ const ClubsPage = () => {
                       className="rounded-md border border-slate-300 px-3 py-1 text-sm font-semibold text-slate-600 transition hover:border-slate-400 hover:text-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
                       disabled={processingClubId === club.id}
                     >
-                      {processingClubId === club.id ? 'Leaving...€¦' : 'Leave'}
+                      {processingClubId === club.id ? 'Leaving...ï¿½ï¿½' : 'Leave'}
                     </button>
                   ) : (
                     <button
@@ -247,7 +247,7 @@ const ClubsPage = () => {
                       className="rounded-md bg-blue-600 px-3 py-1 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300"
                       disabled={processingClubId === club.id}
                     >
-                      {processingClubId === club.id ? 'Joining...€¦' : 'Join'}
+                      {processingClubId === club.id ? 'Joining...ï¿½ï¿½' : 'Join'}
                     </button>
                   )}
                   {(role === 'admin' || String(club.ownerId) === String(user?.id)) && (
@@ -264,7 +264,7 @@ const ClubsPage = () => {
                         className="rounded-md border border-rose-200 px-3 py-1 text-sm font-semibold text-rose-600 transition hover:border-rose-300 hover:text-rose-700 disabled:cursor-not-allowed disabled:opacity-50"
                         disabled={processingClubId === club.id}
                       >
-                        {processingClubId === club.id ? 'Removing...€¦' : 'Delete'}
+                        {processingClubId === club.id ? 'Removing...ï¿½ï¿½' : 'Delete'}
                       </button>
                     </>
                   )}
