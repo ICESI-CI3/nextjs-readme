@@ -9,7 +9,44 @@ type Serializable =
   | Serializable[]
   | { [key: string]: Serializable | null | undefined };
 
-type ClubRecord = Record<string, unknown>;
+export type ClubMemberRecord = {
+  id?: string | number;
+  name?: string;
+  email?: string;
+  [key: string]: unknown;
+};
+
+export type DebateMessageRecord = {
+  id?: string | number;
+  author?: ClubMemberRecord | string;
+  message?: string;
+  createdAt?: string;
+  [key: string]: unknown;
+};
+
+export type DebateRecord = {
+  id?: string | number;
+  topic?: string;
+  messages?: DebateMessageRecord[];
+  [key: string]: unknown;
+};
+
+export type ClubRecord = {
+  id?: string | number;
+  name?: string;
+  description?: string;
+  currentBook?: {
+    title?: string;
+    author?: string;
+    [key: string]: unknown;
+  } | null;
+  book?: string;
+  members?: ClubMemberRecord[] | Array<string | number>;
+  meetingCadence?: string;
+  ownerId?: string | number;
+  debates?: DebateRecord[];
+  [key: string]: unknown;
+};
 
 const getToken = (): string | null =>
   typeof window === "undefined" ? null : localStorage.getItem("token");

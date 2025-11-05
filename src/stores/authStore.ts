@@ -2,14 +2,7 @@
 
 import { create } from 'zustand';
 import { loginUser, getProfile, logoutUser } from '@/services/userService';
-
-type AuthUser = {
-  id?: string | number;
-  name?: string;
-  email?: string;
-  role?: string;
-  [key: string]: unknown;
-};
+import type { AuthUser } from '@/services/userService';
 
 type Credentials = {
   email: string;
@@ -60,6 +53,27 @@ const getErrorMessage = (error: unknown) => {
   return 'Unexpected error, please try again.';
 };
 
+const isAuthUser = (value: unknown): value is AuthUser => {
+  return (
+    value !== null &&
+    typeof value === 'object' &&
+    !Array.isArray(value)
+  );
+};
+
+const normalizeAuthUser = (value: unknown): AuthUser | null => {
+  if (isAuthUser(value)) {
+    return value;
+  }
+  if (value && typeof value === 'object' && 'user' in value) {
+    const nested = (value as { user?: unknown }).user;
+    if (isAuthUser(nested)) {
+      return nested;
+    }
+  }
+  return null;
+};
+
 export const useAuthStore = create<AuthState>((set, get) => ({
   token: null,
   user: null,
@@ -86,7 +100,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     try {
       const profile = await getProfile();
-      const resolvedUser = profile?.user ?? profile ?? null;
+      const resolvedUser = normalizeAuthUser(profile);
       const role = resolvedUser?.role ? String(resolvedUser.role) : null;
       setRoleCookie(role);
       set({
@@ -122,16 +136,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         setAuthCookie(token);
       }
 
-      let user = response?.user ?? null;
-      if (!user) {
+      let userCandidate: unknown = response?.user ?? null;
+      if (!userCandidate) {
         try {
-          user = await getProfile();
+          userCandidate = await getProfile();
         } catch {
-          // tolerate profile failure here; user remains null
+          userCandidate = null;
         }
       }
 
-      const resolvedUser = user?.user ?? user ?? null;
+      const resolvedUser = normalizeAuthUser(userCandidate);
       const role = resolvedUser?.role ? String(resolvedUser.role) : null;
       setRoleCookie(role);
 

@@ -8,11 +8,21 @@ import {
 } from "@/lib/googleBooksConfig";
 import type { GoogleVolume } from "@/lib/googleBooks";
 
+export type BookRecord = {
+  id?: string | number;
+  title?: string;
+  authors?: string;
+  isbn?: string;
+  cover?: string;
+  status?: string;
+  description?: string;
+  [key: string]: unknown;
+};
+
 type AuthHeaders = {
   Authorization: string;
 };
 
-export type BookRecord = Record<string, unknown>;
 export type GoogleBooksApiResponse = {
   items?: GoogleVolume[] | undefined;
   [key: string]: unknown;

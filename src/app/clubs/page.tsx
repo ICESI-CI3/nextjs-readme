@@ -21,8 +21,8 @@ type Club = {
   id?: string | number;
   name?: string;
   description?: string;
-  currentBook?: { id?: string | number; title?: string };
-  book?: string;
+  currentBook?: { id?: string | number; title?: string } | null;
+  book?: string | null;
   members?: (ClubMember | string | number)[];
   ownerId?: string | number;
 };
