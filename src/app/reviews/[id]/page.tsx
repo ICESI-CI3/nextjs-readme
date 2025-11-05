@@ -179,7 +179,7 @@ const ReviewDetailPage = () => {
         </div>
       ) : review ? (
         <div className="space-y-4">
-          <article className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+          <article  data-testid="review-row" className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
             <dl className="grid gap-4 sm:grid-cols-2">
               <div>
                 <dt className="text-xs font-semibold uppercase tracking-wide text-slate-400">Book</dt>
@@ -209,6 +209,7 @@ const ReviewDetailPage = () => {
             >
               <div className="grid gap-4 sm:grid-cols-2">
                 <Select
+                  data-testid="rating-select"
                   label="Rating"
                   value={form.rating}
                   onChange={(event) => updateField('rating', event.target.value)}
@@ -236,6 +237,7 @@ const ReviewDetailPage = () => {
                 )}
               </div>
               <Textarea
+                data-testid="review-textarea"
                 label="Review"
                 value={form.text}
                 onChange={(event) => updateField('text', event.target.value)}

@@ -1,5 +1,4 @@
-import axios from "axios";
-import { URL_BASE } from "../constants/global";
+import apiClient, { resolveAuthToken } from "./apiClient";
 
 export type AuthUser = {
   id?: string | number;
@@ -45,8 +44,8 @@ type AuthResponse = {
 
 type ApiUserResponse = AuthUser | AuthUser[] | { user?: AuthUser | null };
 
-const getToken = (): string | null =>
-  typeof window === "undefined" ? null : localStorage.getItem("token");
+const toPathSegment = (value: string | number): string =>
+  encodeURIComponent(String(value));
 
 const buildUserPayload = (
   userData: UserInput,
@@ -109,8 +108,8 @@ export const registerUser = async (
   userData: UserInput
 ): Promise<ApiUserResponse> => {
   const payload = buildUserPayload(userData);
-  const res = await axios.post<ApiUserResponse>(
-    `${URL_BASE}/users/register`,
+  const res = await apiClient.post<ApiUserResponse>(
+    '/users/register',
     payload
   );
   console.log("User registered:", res.data);
@@ -120,8 +119,8 @@ export const registerUser = async (
 export const loginUser = async (
   credentials: Record<string, unknown>
 ): Promise<AuthResponse> => {
-  const res = await axios.post<AuthResponse>(
-    `${URL_BASE}/users/login`,
+  const res = await apiClient.post<AuthResponse>(
+    '/users/login',
     credentials
   );
   const token = res.data.token;
@@ -135,32 +134,21 @@ export const loginUser = async (
 };
 
 export const logoutUser = async (): Promise<unknown | null> => {
-  const token = getToken();
+  const token = resolveAuthToken();
   if (!token) return null;
 
-  const res = await axios.post(
-    `${URL_BASE}/users/logout`,
-    null,
-    { headers: { Authorization: `Bearer ${token}` } }
-  );
+  const res = await apiClient.post('/users/logout', null);
   console.log("User logged out:", res.data);
   return res.data;
-};
-
-const getAuthHeaders = (): { Authorization: string } | null => {
-  const token = getToken();
-  return token ? { Authorization: `Bearer ${token}` } : null;
 };
 
 export const getUsers = async (): Promise<
   AuthUser[] | AuthUser | null
 > => {
-  const headers = getAuthHeaders();
-  if (!headers) return null;
+  const token = resolveAuthToken();
+  if (!token) return null;
 
-  const res = await axios.get<AuthUser[] | AuthUser>(`${URL_BASE}/users`, {
-    headers,
-  });
+  const res = await apiClient.get<AuthUser[] | AuthUser>('/users');
   console.log("Users:", res.data);
   return res.data;
 };
@@ -168,14 +156,11 @@ export const getUsers = async (): Promise<
 export const getProfile = async (): Promise<
   AuthUser | { user?: AuthUser | null } | null
 > => {
-  const headers = getAuthHeaders();
-  if (!headers) return null;
+  const token = resolveAuthToken();
+  if (!token) return null;
 
-  const res = await axios.get<AuthUser | { user?: AuthUser | null }>(
-    `${URL_BASE}/users/me`,
-    {
-      headers,
-    }
+  const res = await apiClient.get<AuthUser | { user?: AuthUser | null }>(
+    '/users/me'
   );
   console.log("Profile:", res.data);
   return res.data;
@@ -184,17 +169,14 @@ export const getProfile = async (): Promise<
 export const createUser = async (
   userData: UserInput
 ): Promise<ApiUserResponse | null> => {
-  const headers = getAuthHeaders();
-  if (!headers) return null;
+  const token = resolveAuthToken();
+  if (!token) return null;
 
   const payload = buildUserPayload(userData, { role: "reader" });
 
-  const res = await axios.post<ApiUserResponse>(
-    `${URL_BASE}/users`,
-    payload,
-    {
-      headers,
-    }
+  const res = await apiClient.post<ApiUserResponse>(
+    '/users/admin/register',
+    payload
   );
   console.log("User created:", res.data);
   return res.data;
@@ -204,8 +186,8 @@ export const updateUser = async (
   id: string | number,
   userData: Record<string, unknown>
 ): Promise<ApiUserResponse | null> => {
-  const headers = getAuthHeaders();
-  if (!headers) return null;
+  const token = resolveAuthToken();
+  if (!token) return null;
 
   const payload: Record<string, unknown> = { ...userData };
 
@@ -223,12 +205,9 @@ export const updateUser = async (
     delete payload.role;
   }
 
-  const res = await axios.put<ApiUserResponse>(
-    `${URL_BASE}/users/${id}`,
-    payload,
-    {
-      headers,
-    }
+  const res = await apiClient.put<ApiUserResponse>(
+    `/users/${toPathSegment(id)}`,
+    payload
   );
   console.log("User updated:", res.data);
   return res.data;
@@ -237,14 +216,11 @@ export const updateUser = async (
 export const deleteUser = async (
   id: string | number
 ): Promise<ApiUserResponse | null> => {
-  const headers = getAuthHeaders();
-  if (!headers) return null;
+  const token = resolveAuthToken();
+  if (!token) return null;
 
-  const res = await axios.delete<ApiUserResponse>(
-    `${URL_BASE}/users/${id}`,
-    {
-      headers,
-    }
+  const res = await apiClient.delete<ApiUserResponse>(
+    `/users/${toPathSegment(id)}`
   );
   console.log("User deleted:", res.data);
   return res.data;

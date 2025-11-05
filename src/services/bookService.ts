@@ -1,5 +1,5 @@
 import axios, { type AxiosResponse } from "axios";
-import { URL_BASE } from "../constants/global";
+import apiClient, { resolveAuthToken } from "./apiClient";
 import {
   GOOGLE_BOOKS_API,
   GOOGLE_BOOKS_API_KEY,
@@ -11,16 +11,13 @@ import type { GoogleVolume } from "@/lib/googleBooks";
 export type BookRecord = {
   id?: string | number;
   title?: string;
-  authors?: string;
+  authors?: string | string[];
   isbn?: string;
   cover?: string;
+  thumbnailUrl?: string | null;
   status?: string;
   description?: string;
   [key: string]: unknown;
-};
-
-type AuthHeaders = {
-  Authorization: string;
 };
 
 export type GoogleBooksApiResponse = {
@@ -28,13 +25,8 @@ export type GoogleBooksApiResponse = {
   [key: string]: unknown;
 };
 
-const getToken = (): string | null =>
-  typeof window === "undefined" ? null : localStorage.getItem("token");
-
-const withAuthHeaders = (): Partial<AuthHeaders> => {
-  const token = getToken();
-  return token ? { Authorization: `Bearer ${token}` } : {};
-};
+const toPathSegment = (value: string | number): string =>
+  encodeURIComponent(String(value));
 
 const normalizeErrorMessage = (error: unknown, fallback: string): string => {
   if (axios.isAxiosError(error)) {
@@ -74,12 +66,8 @@ const handleRequest = async <T>(
 export const getAllBooks = async (): Promise<
   BookRecord | BookRecord[] | null
 > => {
-  const headers = withAuthHeaders();
   const { data } = await handleRequest<BookRecord | BookRecord[]>(
-    () =>
-      axios.get<BookRecord | BookRecord[]>(`${URL_BASE}/books`, {
-        headers,
-      }),
+    () => apiClient.get<BookRecord | BookRecord[]>('/books'),
     "Unable to load books."
   );
   return (data ?? null) as BookRecord | BookRecord[] | null;
@@ -88,12 +76,10 @@ export const getAllBooks = async (): Promise<
 export const getBookByTitle = async (
   title: string
 ): Promise<BookRecord | BookRecord[] | null> => {
-  const headers = withAuthHeaders();
   const { data } = await handleRequest<BookRecord | BookRecord[]>(
     () =>
-      axios.get<BookRecord | BookRecord[]>(
-        `${URL_BASE}/books/title/${title}`,
-        { headers }
+      apiClient.get<BookRecord | BookRecord[]>(
+        `/books/title/${toPathSegment(title)}`
       ),
     "Unable to search books."
   );
@@ -103,12 +89,8 @@ export const getBookByTitle = async (
 export const getBookById = async (
   id: string | number
 ): Promise<BookRecord | null> => {
-  const headers = withAuthHeaders();
   const { data } = await handleRequest<BookRecord>(
-    () =>
-      axios.get<BookRecord>(`${URL_BASE}/books/${id}`, {
-        headers,
-      }),
+    () => apiClient.get<BookRecord>(`/books/${toPathSegment(id)}`),
     "Unable to load this book."
   );
   return (data ?? null) as BookRecord | null;
@@ -117,16 +99,10 @@ export const getBookById = async (
 export const createBook = async (
   bookData: Record<string, unknown>
 ): Promise<BookRecord | null> => {
-  const token = getToken();
+  const token = resolveAuthToken();
   if (!token) return null;
 
-  const { data } = await axios.post<BookRecord>(
-    `${URL_BASE}/books`,
-    bookData,
-    {
-      headers: { Authorization: `Bearer ${token}` },
-    }
-  );
+  const { data } = await apiClient.post<BookRecord>('/books', bookData);
   return (data ?? null) as BookRecord | null;
 };
 
@@ -134,15 +110,12 @@ export const updateBook = async (
   identifier: string | number,
   updateData: Record<string, unknown>
 ): Promise<BookRecord | null> => {
-  const token = getToken();
+  const token = resolveAuthToken();
   if (!token) return null;
 
-  const { data } = await axios.put<BookRecord>(
-    `${URL_BASE}/books/${identifier}`,
-    updateData,
-    {
-      headers: { Authorization: `Bearer ${token}` },
-    }
+  const { data } = await apiClient.put<BookRecord>(
+    `/books/${toPathSegment(identifier)}`,
+    updateData
   );
   return (data ?? null) as BookRecord | null;
 };
@@ -150,14 +123,11 @@ export const updateBook = async (
 export const deleteBook = async (
   identifier: string | number
 ): Promise<BookRecord | null> => {
-  const token = getToken();
+  const token = resolveAuthToken();
   if (!token) return null;
 
-  const { data } = await axios.delete<BookRecord>(
-    `${URL_BASE}/books/${identifier}`,
-    {
-      headers: { Authorization: `Bearer ${token}` },
-    }
+  const { data } = await apiClient.delete<BookRecord>(
+    `/books/${toPathSegment(identifier)}`
   );
   return (data ?? null) as BookRecord | null;
 };
@@ -210,6 +180,24 @@ export const searchGoogleBooks = async ({
     }
     return data ?? null;
   } catch (error) {
+    if (axios.isAxiosError(error) && error.code === "ECONNABORTED") {
+      if (process.env.NODE_ENV !== "production") {
+        console.warn("Google Books search timed out, returning empty result set.");
+      }
+      return { items: [] };
+    }
+    if (
+      axios.isAxiosError(error) &&
+      typeof error.response?.status === "number" &&
+      error.response.status >= 500
+    ) {
+      if (process.env.NODE_ENV !== "production") {
+        console.warn(
+          `Google Books search failed with status ${error.response.status}, returning empty result set.`
+        );
+      }
+      return { items: [] };
+    }
     throw new Error(
       normalizeErrorMessage(
         error,
@@ -235,6 +223,24 @@ export const getGoogleBookById = async (
     );
     return data ?? null;
   } catch (error) {
+    if (axios.isAxiosError(error) && error.code === "ECONNABORTED") {
+      if (process.env.NODE_ENV !== "production") {
+        console.warn("Google Books volume lookup timed out, returning null.");
+      }
+      return null;
+    }
+    if (
+      axios.isAxiosError(error) &&
+      typeof error.response?.status === "number" &&
+      error.response.status >= 500
+    ) {
+      if (process.env.NODE_ENV !== "production") {
+        console.warn(
+          `Google Books volume lookup failed with status ${error.response.status}, returning null.`
+        );
+      }
+      return null;
+    }
     throw new Error(
       normalizeErrorMessage(
         error,
@@ -247,16 +253,13 @@ export const getGoogleBookById = async (
 export const importFromGoogle = async (
   googleData: Record<string, unknown>
 ): Promise<BookRecord | null> => {
-  const token = getToken();
+  const token = resolveAuthToken();
   if (!token) return null;
 
   try {
-    const { data } = await axios.post<BookRecord>(
-      `${URL_BASE}/books/import`,
-      googleData,
-      {
-        headers: { Authorization: `Bearer ${token}` },
-      }
+    const { data } = await apiClient.post<BookRecord>(
+      '/books/import',
+      googleData
     );
     return (data ?? null) as BookRecord | null;
   } catch (error) {

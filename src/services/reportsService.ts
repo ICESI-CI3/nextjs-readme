@@ -1,18 +1,11 @@
-import axios from 'axios';
-import { URL_BASE } from '../constants/global';
+import apiClient, { resolveAuthToken } from './apiClient';
 
-const TOKEN_STORAGE_KEY = 'token';
-
-const getAuthToken = () => (typeof window !== 'undefined' ? localStorage.getItem(TOKEN_STORAGE_KEY) : null);
-
-const getAuthHeaders = () => {
-  const token = getAuthToken();
+const ensureAuth = () => {
+  const token = resolveAuthToken();
   if (!token) {
     throw new Error('Missing session token. Please log in again.');
   }
-  return {
-    Authorization: `Bearer ${token}`,
-  };
+  return token;
 };
 
 const generateFallbackId = () => {
@@ -71,9 +64,10 @@ export type TopReaderReport = {
 };
 
 export const fetchUserStatsReport = async (): Promise<UserStatsReport[]> => {
-  const { data } = await axios.get<RawUserStats[] | ApiMessage>(`${URL_BASE}/reports/users-stats`, {
-    headers: getAuthHeaders(),
-  });
+  ensureAuth();
+  const { data } = await apiClient.get<RawUserStats[] | ApiMessage>(
+    '/reports/users-stats'
+  );
 
   if (!Array.isArray(data)) {
     return [];
@@ -96,9 +90,9 @@ const isMessageResponse = (payload: unknown): payload is ApiMessage =>
   !!payload && typeof payload === 'object' && 'message' in payload;
 
 export const fetchMostReadBookReport = async (): Promise<MostReadBookReport | null> => {
-  const { data } = await axios.get<Record<string, unknown> | ApiMessage>(
-    `${URL_BASE}/reports/most-read-book`,
-    { headers: getAuthHeaders() },
+  ensureAuth();
+  const { data } = await apiClient.get<Record<string, unknown> | ApiMessage>(
+    '/reports/most-read-book',
   );
 
   if (!data || isMessageResponse(data)) {
@@ -111,9 +105,9 @@ export const fetchMostReadBookReport = async (): Promise<MostReadBookReport | nu
 };
 
 export const fetchMostCommentedBookReport = async (): Promise<MostCommentedBookReport | null> => {
-  const { data } = await axios.get<Record<string, unknown> | ApiMessage>(
-    `${URL_BASE}/reports/most-commented-book`,
-    { headers: getAuthHeaders() },
+  ensureAuth();
+  const { data } = await apiClient.get<Record<string, unknown> | ApiMessage>(
+    '/reports/most-commented-book',
   );
 
   if (!data || isMessageResponse(data)) {
@@ -126,9 +120,9 @@ export const fetchMostCommentedBookReport = async (): Promise<MostCommentedBookR
 };
 
 export const fetchTopReaderReport = async (): Promise<TopReaderReport | null> => {
-  const { data } = await axios.get<Record<string, unknown> | ApiMessage>(
-    `${URL_BASE}/reports/top-reader`,
-    { headers: getAuthHeaders() },
+  ensureAuth();
+  const { data } = await apiClient.get<Record<string, unknown> | ApiMessage>(
+    '/reports/top-reader',
   );
 
   if (!data || isMessageResponse(data)) {
