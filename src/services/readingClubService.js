@@ -52,12 +52,16 @@ export const deleteReadingClub = async (id) => {
 };
 
 export const joinReadingClub = async (clubId, userId) => {
-    const token = localStorage.getItem("token");
+    const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
     if (!token) return null;
 
-    const response = await axios.post(`${URL_BASE}/reading-clubs/${clubId}/join/${userId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-    });
+    const response = await axios.post(
+        `${URL_BASE}/reading-clubs/${clubId}/join/${userId}`,
+        {},
+        {
+            headers: { Authorization: `Bearer ${token}` },
+        },
+    );
     return response.data;
 };
 
