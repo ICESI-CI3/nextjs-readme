@@ -12,13 +12,13 @@ type NavItem = {
 };
 
 const navItems: NavItem[] = [
-  { label: 'Dashboard', href: '/dashboard' },
-  { label: 'Books', href: '/books' },
-  { label: 'Reading log', href: '/reading' },
-  { label: 'Reviews', href: '/reviews' },
-  { label: 'Clubs', href: '/clubs' },
-  { label: 'Reports', href: '/reports' },
-  { label: 'Admin', href: '/admin/users', roles: ['admin'] },
+  { label: "Dashboard", href: "/dashboard" },
+  { label: "Books", href: "/books" },
+  { label: "Reading log", href: "/reading" },
+  { label: "Reviews", href: "/reviews" },
+  { label: "Clubs", href: "/clubs" },
+  { label: "Reports", href: "/reports", roles: ["admin"] },
+  { label: "Admin", href: "/admin/users", roles: ["admin"] },
 ];
 
 const Sidebar = () => {
