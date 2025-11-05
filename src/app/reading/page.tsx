@@ -104,7 +104,7 @@ const ReadingLogPage = () => {
       setError(null);
       try {
         const [readingStates, bookList] = await Promise.all([
-          getReadingStatesByUser(user.id),
+          getReadingStatesByUser(String(user.id)),
           isAdmin ? getAllBooks() : Promise.resolve(null),
         ]);
 
@@ -292,7 +292,7 @@ const ReadingLogPage = () => {
           );
         }
       } else {
-        await updateReadingState(state.id, {
+        await updateReadingState(String(state.id), {
           status: changes.status,
           notes: changes.notes,
         });
@@ -329,7 +329,7 @@ const ReadingLogPage = () => {
         }
         deleteLocalReadingState(String(user.id), String(state.id));
       } else {
-        await deleteReadingState(state.id);
+        await deleteReadingState(String(state.id));
       }
       setStates((prev) => prev.filter((item) => item.id !== state.id));
       setEdits((prev) => {
