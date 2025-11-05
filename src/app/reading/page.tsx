@@ -375,6 +375,7 @@ const ReadingLogPage = () => {
               ]}
             />
             <Select
+              data-testid="status-new"
               label="Status"
               value={newState.status}
               onChange={(event) => setNewState((prev) => ({ ...prev, status: event.target.value }))}
