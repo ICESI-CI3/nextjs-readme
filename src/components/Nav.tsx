@@ -18,9 +18,14 @@ const Nav = () => {
 
   const role = user?.role ?? 'reader';
 
-  const handleLogout = () => {
-    logout();
-    router.push('/login');
+  const handleLogout = async () => {
+    try {
+      await logout();
+    } catch (error) {
+      console.error('Logout failed', error);
+    } finally {
+      router.push('/login');
+    }
   };
 
   return (
@@ -37,7 +42,12 @@ const Nav = () => {
           <button
             type="button"
             onClick={handleLogout}
-            className="rounded-md border border-slate-300 px-3 py-1 text-sm font-medium text-slate-600 transition hover:border-slate-400 hover:text-slate-800"
+            disabled={status === 'loading'}
+            className={`rounded-md border border-slate-300 px-3 py-1 text-sm font-medium transition ${
+              status === 'loading'
+                ? 'cursor-not-allowed border-slate-200 text-slate-300'
+                : 'text-slate-600 hover:border-slate-400 hover:text-slate-800'
+            }`}
           >
             Logout
           </button>

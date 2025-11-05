@@ -2,7 +2,6 @@
 
 import { FormEvent, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Input from '@/components/Form/Input';
 import Select from '@/components/Form/Select';
 import Textarea from '@/components/Form/Textarea';
 import Toast from '@/components/Toast';
