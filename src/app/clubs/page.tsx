@@ -37,6 +37,9 @@ const ClubsPage = () => {
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [processingClubId, setProcessingClubId] = useState<string | number | null>(null);
 
+  const userId = user?.id ? user.id.toString() : null;
+  const canCreateClub = Boolean(userId);
+
   useEffect(() => {
     let active = true;
 
@@ -174,7 +177,7 @@ const ClubsPage = () => {
           <h1 className="text-2xl font-semibold text-slate-900">Reading clubs</h1>
           <p className="text-sm text-slate-500">Discover reading circles, join discussions, and manage your groups.</p>
         </div>
-        {(role === 'admin' || role === 'moderator') && (
+        {canCreateClub && (
           <Link
             href="/clubs/new"
             className="inline-flex h-11 items-center rounded-md bg-blue-600 px-4 text-sm font-semibold text-white transition hover:bg-blue-700"
@@ -274,17 +277,17 @@ const ClubsPage = () => {
           })}
         </div>
       ) : (
-        <div className="rounded-lg border border-dashed border-slate-300 bg-white p-10 text-center">
-          <h2 className="text-lg font-semibold text-slate-800">No clubs yet</h2>
-          <p className="mt-2 text-sm text-slate-500">
-            Join or create a club to start collaborative reading sessions.
-          </p>
-          {(role === 'admin' || role === 'moderator') && (
-            <Link
-              href="/clubs/new"
-              className="mt-4 inline-flex h-10 items-center justify-center rounded-md bg-blue-600 px-4 text-sm font-semibold text-white hover:bg-blue-700"
-            >
-              Create a club
+          <div className="rounded-lg border border-dashed border-slate-300 bg-white p-10 text-center">
+            <h2 className="text-lg font-semibold text-slate-800">No clubs yet</h2>
+            <p className="mt-2 text-sm text-slate-500">
+              Join an existing club or start one to become its moderator.
+            </p>
+            {canCreateClub && (
+              <Link
+                href="/clubs/new"
+                className="mt-4 inline-flex h-10 items-center justify-center rounded-md bg-blue-600 px-4 text-sm font-semibold text-white hover:bg-blue-700"
+              >
+                Create a club
             </Link>
           )}
         </div>

@@ -20,6 +20,29 @@ const statusOptions = [
   { value: "completed", label: "Completed" },
 ];
 
+const extractErrorMessage = (error: unknown): string | null => {
+  if (!error) return null;
+  if (typeof error === "string") return error;
+  if (error instanceof Error) return error.message;
+
+  if (typeof error === "object") {
+    const maybeResponse = (error as { response?: { data?: unknown } }).response;
+    if (maybeResponse) {
+      const data = maybeResponse.data;
+      if (typeof data === "string") return data;
+      if (data && typeof data === "object" && "message" in data) {
+        const responseMessage = (data as { message?: unknown }).message;
+        if (typeof responseMessage === "string") return responseMessage;
+      }
+    }
+    if ("message" in error && typeof (error as { message?: unknown }).message === "string") {
+      return String((error as { message: string }).message);
+    }
+  }
+
+  return null;
+};
+
 const GoogleBookDetailPage = () => {
   const router = useRouter();
   const params = useParams<{ id: string }>();
@@ -90,6 +113,7 @@ const GoogleBookDetailPage = () => {
         userId: String(user.id),
         googleId: volumeId,
         uiStatus: status as "to-read" | "reading" | "completed",
+        notes,
       });
 
       setInfo("Saved to your reading log.");
@@ -98,9 +122,13 @@ const GoogleBookDetailPage = () => {
       // setStatus('reading');
     } catch (err) {
       console.error("Unable to save reading state", err);
-      setError(
-        err instanceof Error ? err.message : "Unable to save reading state."
-      );
+      const message = extractErrorMessage(err);
+      if (message && message.toLowerCase().includes("already exists")) {
+        setError(null);
+        setInfo("This book is already in your reading log.");
+        return;
+      }
+      setError(message ?? "Unable to save reading state.");
     } finally {
       setRegistering(false);
     }
