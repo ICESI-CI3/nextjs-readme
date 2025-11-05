@@ -9,7 +9,7 @@ import { upsertReadingState } from "@/services/readingStateService"; // ✅ use 
 import { getGoogleBookById } from "@/services/bookService"; // ✅ keep read-only fetch
 import Select from "@/components/Form/Select";
 import Textarea from "@/components/Form/Textarea";
-import { GoogleVolume, extractCover, extractIsbn } from "@/lib/googleBooks";
+import { GoogleVolume } from "@/lib/googleBooks";
 
 
 // ... (types + helpers extractIsbn/extractCover stay the same)
@@ -107,23 +107,6 @@ const GoogleBookDetailPage = () => {
   };
 
   if (!volumeId) return null;
-
-  const details = volume?.volumeInfo ?? {};
-  const cover = extractCover(volume ?? {});
-  const authors = Array.isArray(details.authors)
-    ? details.authors.join(", ")
-    : "Unknown author";
-  const categories = Array.isArray(details.categories)
-    ? details.categories.join(", ")
-    : "Uncategorized";
-  const publishedDate = details.publishedDate
-    ? new Date(details.publishedDate).toLocaleDateString(undefined, {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-      })
-    : "Unknown";
-  const isbn = extractIsbn(volume ?? {});
 
   return (
     <section className="space-y-6">

@@ -1,6 +1,7 @@
 'use client';
 
 import { FormEvent, useEffect, useState } from 'react';
+import Image from 'next/image';
 import { notFound, useParams, useRouter } from 'next/navigation';
 import Input from '@/components/Form/Input';
 import Select from '@/components/Form/Select';
@@ -200,7 +201,14 @@ const BookDetailPage = () => {
           <aside className="space-y-4 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
             {book.cover ? (
               <div className="relative h-64 w-full overflow-hidden rounded-md border border-slate-100">
-                <img src={book.cover} alt={book.title ?? 'Book cover'} className="h-full w-full object-cover" />
+                <Image
+                  src={book.cover}
+                  alt={book.title ?? 'Book cover'}
+                  fill
+                  className="object-cover"
+                  sizes="(max-width: 1024px) 100vw, 280px"
+                  unoptimized
+                />
               </div>
             ) : (
               <div className="flex h-64 w-full items-center justify-center rounded-md border border-dashed border-slate-300 bg-slate-100 text-sm text-slate-400">

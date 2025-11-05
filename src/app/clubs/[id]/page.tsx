@@ -1,7 +1,7 @@
 'use client';
 
 import { FormEvent, useEffect, useState } from 'react';
-import { notFound, useParams, useRouter } from 'next/navigation';
+import { notFound, useParams } from 'next/navigation';
 import Input from '@/components/Form/Input';
 import Textarea from '@/components/Form/Textarea';
 import Select from '@/components/Form/Select';
@@ -55,7 +55,6 @@ const meetingOptions = [
 
 const ClubDetailPage = () => {
   const params = useParams<{ id: string }>();
-  const router = useRouter();
   const user = useAuthStore((state) => state.user);
   const role = user?.role ?? 'reader';
   const [club, setClub] = useState<Club | null>(null);
