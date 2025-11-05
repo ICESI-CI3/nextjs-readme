@@ -11,6 +11,7 @@ export type GoogleVolume = {
     imageLinks?: {
       small?: string;
       thumbnail?: string;
+      smallThumbnail?: string;
       medium?: string;
       large?: string;
     };

@@ -2,7 +2,19 @@ import axios from "axios";
 import { URL_BASE } from "../constants/global";
 
 type ReviewPayload = Record<string, unknown>;
-type ReviewRecord = Record<string, unknown>;
+
+export type ReviewRecord = {
+  id?: string | number;
+  rating?: number;
+  comment?: string;
+  text?: string;
+  status?: string;
+  bookId?: string | number;
+  userId?: string | number;
+  createdAt?: string;
+  updatedAt?: string;
+  [key: string]: unknown;
+};
 
 const getToken = (): string | null =>
   typeof window === "undefined" ? null : localStorage.getItem("token");

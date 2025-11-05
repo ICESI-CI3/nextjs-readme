@@ -6,6 +6,7 @@ import Select from '@/components/Form/Select';
 import Toast from '@/components/Toast';
 import { searchGoogleBooks } from '@/services/bookService';
 import { GOOGLE_BOOKS_MAX_RESULTS } from '@/lib/googleBooksConfig';
+import type { GoogleVolume } from '@/lib/googleBooks';
 
 type GoogleBookResult = {
   title?: string;
@@ -19,6 +20,34 @@ type GoogleBookResult = {
 
 type GoogleBooksSearchProps = {
   onSelect: (book: GoogleBookResult) => void;
+};
+
+const mapVolumeToResult = (volume: GoogleVolume): GoogleBookResult => {
+  const info = volume.volumeInfo ?? {};
+  const imageLinks = info.imageLinks ?? {};
+  const isbn =
+    info.industryIdentifiers?.find((item) =>
+      item?.type?.toLowerCase().includes('isbn13'),
+    )?.identifier ??
+    info.industryIdentifiers?.find((item) =>
+      item?.type?.toLowerCase().includes('isbn10'),
+    )?.identifier;
+
+  return {
+    title: info.title,
+    authors: info.authors,
+    isbn,
+    cover:
+      imageLinks.thumbnail ??
+      imageLinks.small ??
+      imageLinks.smallThumbnail ??
+      imageLinks.medium ??
+      imageLinks.large ??
+      undefined,
+    description: info.description,
+    publisher: info.publisher,
+    publishedDate: info.publishedDate,
+  };
 };
 
 const GoogleBooksSearch = ({ onSelect }: GoogleBooksSearchProps) => {
@@ -47,11 +76,8 @@ const GoogleBooksSearch = ({ onSelect }: GoogleBooksSearchProps) => {
         maxResults: GOOGLE_BOOKS_MAX_RESULTS,
       });
 
-      const list: GoogleBookResult[] = Array.isArray(response)
-        ? response
-        : Array.isArray(response?.items)
-          ? response.items
-          : [];
+      const volumes = Array.isArray(response?.items) ? response.items : [];
+      const list: GoogleBookResult[] = volumes.map(mapVolumeToResult);
 
       setResults(list);
       if (!list.length) {

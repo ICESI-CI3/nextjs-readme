@@ -38,8 +38,8 @@ type Club = {
   id?: string | number;
   name?: string;
   description?: string;
-  currentBook?: { title?: string; author?: string };
-  book?: string;
+  currentBook?: { title?: string; author?: string } | null;
+  book?: string | null;
   members?: ClubMember[] | (string | number)[];
   meetingCadence?: string;
   ownerId?: string | number;
