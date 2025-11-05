@@ -33,13 +33,12 @@ const cadenceOptions = [
 const ClubCreatePage = () => {
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
-  const role = user?.role ?? 'reader';
   const [form, setForm] = useState<ClubForm>(defaultForm);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const isAuthorized = role === 'admin' || role === 'moderator';
+  const isAuthorized = Boolean(user?.id);
 
   const updateField = <Key extends keyof ClubForm>(key: Key, value: ClubForm[Key]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -70,6 +69,8 @@ const ClubCreatePage = () => {
         description: form.description,
         meetingCadence: form.meetingCadence,
         currentBook: form.currentBook,
+        moderatorId: user?.id ? String(user.id) : undefined,
+        ownerId: user?.id ? String(user.id) : undefined,
       });
       setSuccess('Club created successfully.');
       setTimeout(() => router.push('/clubs'), 1000);
@@ -86,12 +87,10 @@ const ClubCreatePage = () => {
       <section className="space-y-6">
         <header className="space-y-2">
           <h1 className="text-2xl font-semibold text-slate-900">Create a club</h1>
-          <p className="text-sm text-slate-500">
-            Only moderators and administrators can start new clubs.
-          </p>
+          <p className="text-sm text-slate-500">Sign in to start and moderate your own reading club.</p>
         </header>
         <div className="rounded-lg border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
-          You do not have permission to create a new club. Contact an administrator if you believe this is an error.
+          You need an active session to create a new club. Please log in, then come back to start organizing your readers.
         </div>
       </section>
     );
@@ -101,7 +100,9 @@ const ClubCreatePage = () => {
     <section className="space-y-6">
       <header className="space-y-2">
         <h1 className="text-2xl font-semibold text-slate-900">Create a club</h1>
-        <p className="text-sm text-slate-500">Gather readers around a shared goal and track participation.</p>
+        <p className="text-sm text-slate-500">
+          Gather readers around a shared goal; whoever starts the club becomes its moderator automatically.
+        </p>
       </header>
 
       {error ? <Toast message={error} type="error" onDismiss={() => setError(null)} /> : null}

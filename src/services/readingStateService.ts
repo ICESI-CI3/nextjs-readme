@@ -16,11 +16,36 @@ const authHeaders = () => {
   return token ? { Authorization: `Bearer ${token}` } : {};
 };
 
+const normalizeStatusForApi = (status: unknown): ApiStatus | string | undefined => {
+  if (typeof status !== 'string') {
+    return status as ApiStatus | string | undefined;
+  }
+
+  const trimmed = status.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+
+  const lower = trimmed.toLowerCase();
+  if (lower === 'to-read' || lower === 'to read') {
+    return 'pending';
+  }
+  if (lower === 'completed' || lower === 'complete') {
+    return 'read';
+  }
+  if (lower === 'reading' || lower === 'pending' || lower === 'read') {
+    return lower as ApiStatus;
+  }
+
+  return trimmed;
+};
+
 // ===== New: Upsert using googleId (backend will import if needed)
 export async function upsertReadingState(params: {
   userId: string;
   googleId: string;
   uiStatus: UiStatus;
+  notes?: string | null;
 }) {
   const token = getAuthToken();
   if (!token) return null;
@@ -28,8 +53,8 @@ export async function upsertReadingState(params: {
   const body = {
     userId: params.userId,
     googleId: params.googleId,
-    state: uiToApiStatus(params.uiStatus),
-    // notes?: string  // add only if your DTO allows it
+    status: uiToApiStatus(params.uiStatus),
+    notes: params.notes?.trim() ? params.notes.trim() : undefined,
   };
 
   const { data } = await axios.post(
@@ -64,9 +89,22 @@ export const createReadingState = async (readingStateData: ReadingStateCreatePay
   const token = getAuthToken();
   if (!token) return null;
 
+  const normalizedStatus = normalizeStatusForApi(readingStateData.status);
+  const payload = {
+    ...readingStateData,
+    status: normalizedStatus,
+    state: normalizedStatus,
+  };
+  if (payload.status === undefined) {
+    delete payload.status;
+  }
+  if (payload.state === undefined) {
+    delete payload.state;
+  }
+
   const { data } = await axios.post(
     `${URL_BASE}/reading-states`,
-    readingStateData,
+    payload,
     { headers: authHeaders() }
   );
   return data;
@@ -97,9 +135,22 @@ export const updateReadingState = async (id: string, updateData: ReadingStateUpd
   const token = getAuthToken();
   if (!token) return null;
 
+  const normalizedStatus = normalizeStatusForApi(updateData.status);
+  const payload = {
+    ...updateData,
+    status: normalizedStatus,
+    state: normalizedStatus,
+  };
+  if (payload.status === undefined) {
+    delete payload.status;
+  }
+  if (payload.state === undefined) {
+    delete payload.state;
+  }
+
   const { data } = await axios.patch(
     `${URL_BASE}/reading-states/${id}`,
-    updateData,
+    payload,
     { headers: authHeaders() }
   );
   return data;
