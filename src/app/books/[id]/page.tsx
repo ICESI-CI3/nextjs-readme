@@ -158,7 +158,7 @@ const BookDetailPage = () => {
     <section className="space-y-6">
       <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900">{book?.title ?? 'Book details'}</h1>
+          <h1 data-testid="book-title" className="text-2xl font-semibold text-slate-900">{book?.title ?? 'Book details'}</h1>
           <p className="text-sm text-slate-500">View book metadata, availability, and description.</p>
           {!isAdmin ? (
             <p className="mt-1 text-xs uppercase tracking-wide text-slate-400">
@@ -218,11 +218,11 @@ const BookDetailPage = () => {
             <dl className="space-y-2 text-sm text-slate-600">
               <div className="flex justify-between">
                 <dt className="font-medium text-slate-500">Title</dt>
-                <dd className="text-right text-slate-700">{book.title ?? 'N/A'}</dd>
+                <dd data-testid="book-title" className="text-right text-slate-700">{book.title ?? 'N/A'}</dd>
               </div>
               <div className="flex justify-between">
                 <dt className="font-medium text-slate-500">Authors</dt>
-                <dd className="text-right text-slate-700">{book.authors ?? 'N/A'}</dd>
+                <dd data-testid="book-authors" className="text-right text-slate-700">{book.authors ?? 'N/A'}</dd>
               </div>
               <div className="flex justify-between">
                 <dt className="font-medium text-slate-500">ISBN</dt>
@@ -299,7 +299,7 @@ const BookDetailPage = () => {
             ) : (
               <article className="space-y-4 rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
                 <h2 className="text-lg font-semibold text-slate-800">Description</h2>
-                <p className="text-sm text-slate-600">{book.description ?? 'No description provided yet.'}</p>
+                <p data-testid="book-description" className="text-sm text-slate-600">{book.description ?? 'No description provided yet.'}</p>
               </article>
             )}
           </div>
