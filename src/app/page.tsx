@@ -11,9 +11,9 @@ export default async function Home() {
 
   return (
     <main className="relative mx-auto flex min-h-screen w-full max-w-5xl flex-col items-center justify-center gap-12 px-6 py-16 text-center sm:text-left">
-      <div className="absolute inset-0 -z-10 bg-gradient-to-br from-slate-100 via-white to-blue-50" aria-hidden />
+      <div className="absolute inset-0 -z-10 bg-linear-to-br from-slate-100 via-white to-blue-50" aria-hidden />
       <div className="rounded-full bg-blue-100 px-4 py-1 text-xs font-semibold uppercase text-blue-600">
-        Welcome to Compunet Reads
+        Welcome to Read.Me
       </div>
       <div className="flex flex-col items-center gap-6 sm:items-start">
         <h1 className="max-w-3xl text-4xl font-bold tracking-tight text-slate-900 sm:text-5xl">
@@ -31,12 +31,7 @@ export default async function Home() {
         >
           Log in to your library
         </Link>
-        <a
-          href="#features"
-          className="flex h-12 items-center justify-center rounded-md border border-slate-300 px-8 font-semibold text-slate-700 transition hover:border-slate-400 hover:text-slate-900"
-        >
-          Explore features
-        </a>
+      
       </div>
       <section id="features" className="grid w-full gap-6 rounded-xl border border-slate-200 bg-white p-8 shadow-sm sm:grid-cols-3">
         {['Manage your books', 'Engage with clubs', 'Monitor reports'].map((feature) => (
