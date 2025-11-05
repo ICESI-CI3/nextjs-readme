@@ -6,13 +6,14 @@ import Input from '@/components/Form/Input';
 import Toast from '@/components/Toast';
 import { useAuthStore } from '@/stores/authStore';
 import { getAllBooks, getBookByTitle, searchGoogleBooks } from '@/services/bookService';
+import BookCard from '@/components/Books/BookCard';
 
 type Book = {
-  id?: string | number;
+  id: string;
   title?: string;
-  authors?: string;
+  authors?: string[];
   isbn?: string;
-  cover?: string;
+  thumbnailUrl?: string | null;
   status?: string;
   description?: string;
   publishedDate?: string;
@@ -35,25 +36,76 @@ type GoogleVolume = {
 const PAGE_SIZE = 8;
 const DEFAULT_GOOGLE_QUERY = 'popular books';
 
-const mapBackendBook = (book: Record<string, unknown>): Book => ({
-  ...(book as Book),
-  source: 'local',
-});
+const normalizeAuthors = (value: unknown): string[] | undefined => {
+  if (Array.isArray(value)) {
+    const normalized = value
+      .map((entry) =>
+        typeof entry === 'string'
+          ? entry.trim()
+          : typeof entry === 'number'
+            ? String(entry)
+            : ''
+      )
+      .filter(Boolean);
+    return normalized.length ? normalized : undefined;
+  }
+  if (typeof value === 'string') {
+    const normalized = value
+      .split(',')
+      .map((entry) => entry.trim())
+      .filter(Boolean);
+    return normalized.length ? normalized : undefined;
+  }
+  return undefined;
+};
+
+const resolveId = (value: unknown, fallbackPrefix: string): string => {
+  if (value !== undefined && value !== null) {
+    const str = String(value).trim();
+    if (str.length) {
+      return str;
+    }
+  }
+  return `${fallbackPrefix}-${Math.random().toString(36).slice(2)}`;
+};
+
+const mapBackendBook = (book: Record<string, unknown>): Book => {
+  const id = resolveId(book.id ?? book.isbn ?? book.title, 'local');
+
+  return {
+    id,
+    title: typeof book.title === 'string' ? book.title : undefined,
+    authors: normalizeAuthors(book.authors),
+    isbn: typeof book.isbn === 'string' ? book.isbn : undefined,
+    thumbnailUrl:
+      typeof book.thumbnailUrl === 'string'
+        ? book.thumbnailUrl
+        : typeof book.cover === 'string'
+          ? book.cover
+          : null,
+    status: typeof book.status === 'string' ? book.status : undefined,
+    description:
+      typeof book.description === 'string' ? book.description : undefined,
+    publishedDate:
+      typeof book.publishedDate === 'string' ? book.publishedDate : undefined,
+    source: 'local',
+  };
+};
 
 const mapGoogleVolume = (volume: GoogleVolume): Book => {
   const info = volume.volumeInfo ?? {};
-  const authors = Array.isArray(info.authors) ? info.authors.join(', ') : undefined;
+  const authors = Array.isArray(info.authors) ? info.authors : undefined;
   const identifiers = Array.isArray(info.industryIdentifiers) ? info.industryIdentifiers : [];
   const primaryIsbn = identifiers.find((item) => item?.type?.toLowerCase().includes('isbn13'))?.identifier ??
     identifiers.find((item) => item?.type?.toLowerCase().includes('isbn10'))?.identifier;
   const cover = info.imageLinks?.thumbnail ?? info.imageLinks?.smallThumbnail ?? undefined;
 
   return {
-    id: volume.id,
+    id: resolveId(volume.id, 'google'),
     title: info.title ?? 'Untitled',
     authors,
     isbn: primaryIsbn,
-    cover,
+    thumbnailUrl: cover ?? null,
     status: info.printType ?? undefined,
     description: info.description ?? undefined,
     publishedDate: info.publishedDate ?? undefined,
@@ -81,20 +133,56 @@ const BooksPage = () => {
       setLoading(true);
       setError(null);
       try {
-        if (isAdmin) {
-          const list = await getAllBooks();
-          if (!active) return;
-          const normalized = Array.isArray(list) ? list : list ? [list] : [];
-          const mapped = normalized.map(mapBackendBook);
-          setBooks(mapped);
-          setFilteredBooks(mapped);
-        } else {
-          const response = await searchGoogleBooks({ query: DEFAULT_GOOGLE_QUERY, maxResults: 24 });
-          if (!active) return;
-          const items = Array.isArray(response?.items) ? response.items : [];
-          const mapped = items.map(mapGoogleVolume);
-          setBooks(mapped);
-          setFilteredBooks(mapped);
+        const [localResult, googleResult] = await Promise.allSettled([
+          getAllBooks(),
+          searchGoogleBooks({ query: DEFAULT_GOOGLE_QUERY, maxResults: 24 }),
+        ]);
+
+        if (!active) return;
+
+        const localEntries =
+          localResult.status === 'fulfilled'
+            ? Array.isArray(localResult.value)
+              ? localResult.value
+              : localResult.value
+                ? [localResult.value]
+                : []
+            : [];
+        const mappedLocal = localEntries
+          .filter(
+            (item): item is Record<string, unknown> =>
+              item !== null && typeof item === 'object'
+          )
+          .map(mapBackendBook);
+
+        const googleItems =
+          googleResult.status === 'fulfilled' && googleResult.value
+            ? Array.isArray(googleResult.value.items)
+              ? googleResult.value.items
+              : []
+            : [];
+        const mappedGoogle = googleItems.map(mapGoogleVolume);
+
+        const combined = [...mappedLocal, ...mappedGoogle];
+        setBooks(combined);
+        setFilteredBooks(combined);
+
+        const failures: string[] = [];
+        if (localResult.status === 'rejected') {
+          console.error('Unable to load library catalog books', localResult.reason);
+          failures.push('library catalog');
+        }
+        if (googleResult.status === 'rejected') {
+          console.error('Unable to load Google Books titles', googleResult.reason);
+          failures.push('Google Books');
+        }
+
+        if (failures.length === 2) {
+          setError('Unable to load books at the moment.');
+        } else if (failures.length === 1) {
+          setError(`Unable to load ${failures[0]} titles. Showing available results.`);
+        } else if (!combined.length) {
+          setError('No books available right now.');
         }
       } catch (err) {
         console.error('Unable to load books', err);
@@ -114,43 +202,65 @@ const BooksPage = () => {
     return () => {
       active = false;
     };
-  }, [isAdmin]);
+  }, [normalizedRole]);
 
   const handleSearch = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setSearching(true);
     setError(null);
     try {
-      if (!searchTerm.trim()) {
+      const term = searchTerm.trim();
+      if (!term) {
         setFilteredBooks(books);
         setPage(1);
         return;
       }
 
-      if (isAdmin) {
-        const result = await getBookByTitle(searchTerm.trim());
-        const normalized = Array.isArray(result) ? result : result ? [result] : [];
-        const mapped = normalized.map(mapBackendBook);
-        setBooks(mapped);
-        setFilteredBooks(mapped);
-        setPage(1);
-        if (!mapped.length) {
-          setError('No books found with that title.');
-        }
-      } else {
-        const response = await searchGoogleBooks({
-          query: searchTerm.trim(),
+      const [localResult, googleResult] = await Promise.allSettled([
+        getBookByTitle(term),
+        searchGoogleBooks({
+          query: term,
           searchBy: 'title',
           maxResults: 24,
-        });
-        const items = Array.isArray(response?.items) ? response.items : [];
-        const mapped = items.map(mapGoogleVolume);
-        setBooks(mapped);
-        setFilteredBooks(mapped);
-        setPage(1);
-        if (!mapped.length) {
-          setError('No books found for that search.');
-        }
+        }),
+      ]);
+
+      const aggregated: Book[] = [];
+      let partial = false;
+
+      if (localResult.status === 'fulfilled') {
+        const normalized = Array.isArray(localResult.value)
+          ? localResult.value
+          : localResult.value
+            ? [localResult.value]
+            : [];
+        const mapped = normalized
+          .filter(
+            (item): item is Record<string, unknown> =>
+              item !== null && typeof item === 'object'
+          )
+          .map(mapBackendBook);
+        aggregated.push(...mapped);
+      } else {
+        console.error('Local catalog search failed', localResult.reason);
+        partial = true;
+      }
+
+      if (googleResult.status === 'fulfilled' && googleResult.value) {
+        const items = Array.isArray(googleResult.value.items) ? googleResult.value.items : [];
+        aggregated.push(...items.map(mapGoogleVolume));
+      } else if (googleResult.status === 'rejected') {
+        console.error('Google Books search failed', googleResult.reason);
+        partial = true;
+      }
+
+      setFilteredBooks(aggregated);
+      setPage(1);
+
+      if (!aggregated.length) {
+        setError('No books found for that search.');
+      } else if (partial) {
+        setError('Showing partial results due to a search error.');
       }
     } catch (err) {
       console.error('Search failed', err);
@@ -171,25 +281,7 @@ const BooksPage = () => {
     setSearchTerm('');
     setError(null);
     setPage(1);
-    if (isAdmin) {
-      setFilteredBooks(books);
-    } else {
-      setLoading(true);
-      searchGoogleBooks({ query: DEFAULT_GOOGLE_QUERY, maxResults: 24 })
-        .then((response) => {
-          const items = Array.isArray(response?.items) ? response.items : [];
-          const mapped = items.map(mapGoogleVolume);
-          setBooks(mapped);
-          setFilteredBooks(mapped);
-        })
-        .catch((err) => {
-          console.error('Unable to refresh Google books', err);
-          setBooks([]);
-          setFilteredBooks([]);
-          setError('Unable to refresh the catalog. Try again later.');
-        })
-        .finally(() => setLoading(false));
-    }
+    setFilteredBooks(books);
   };
 
   return (
@@ -259,33 +351,22 @@ const BooksPage = () => {
           ))}
         </div>
       ) : pageItems.length ? (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {pageItems.map((book, index) => {
-            const href = book.source === 'google'
-              ? `/books/google/${book.id ?? index}`
-              : `/books/${book.id ?? book.title ?? index}`;
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {pageItems.map((book) => {
+            const cardKey = `${book.source}-${book.id}`;
             return (
-              <Link
-                key={(book.id ?? book.isbn ?? book.title ?? index).toString()}
-                href={href}
-                className="flex h-full flex-col gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md"
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <h2 className="text-lg font-semibold text-slate-900">{book.title ?? 'Untitled'}</h2>
-                    <p className="text-xs text-slate-500">{book.authors ?? 'Unknown author'}</p>
-                  </div>
-                  {book.source === 'local' && book.status ? (
-                    <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold uppercase text-blue-600">
-                      {book.status}
-                    </span>
-                  ) : null}
-                </div>
-                <div className="flex items-center justify-between text-xs text-slate-500">
-                  <span>ISBN: {book.isbn ?? 'N/A'}</span>
-                  <span>{book.cover ? 'Cover available' : 'No cover'}</span>
-                </div>
-              </Link>
+              <BookCard
+                key={cardKey}
+                id={book.id}
+                title={book.title ?? 'Untitled'}
+                authors={book.authors}
+                thumbnailUrl={book.thumbnailUrl ?? null}
+                description={book.description}
+                badgeText={
+                  book.source === 'local' && book.status ? book.status : undefined
+                }
+                badgeTone="blue"
+              />
             );
           })}
         </div>

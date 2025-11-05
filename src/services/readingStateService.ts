@@ -1,6 +1,5 @@
 // src/services/readingStateService.ts
-import axios from 'axios';
-import { URL_BASE } from '../constants/global';
+import apiClient, { resolveAuthToken } from './apiClient';
 
 type UiStatus = 'to-read' | 'reading' | 'completed';
 type ApiStatus = 'pending' | 'reading' | 'read';
@@ -8,13 +7,8 @@ type ApiStatus = 'pending' | 'reading' | 'read';
 const uiToApiStatus = (s: UiStatus): ApiStatus =>
   s === 'to-read' ? 'pending' : s === 'completed' ? 'read' : 'reading';
 
-const getAuthToken = () =>
-  typeof window === 'undefined' ? null : localStorage.getItem('token');
-
-const authHeaders = () => {
-  const token = getAuthToken();
-  return token ? { Authorization: `Bearer ${token}` } : {};
-};
+const toPathSegment = (value: string | number): string =>
+  encodeURIComponent(String(value));
 
 const normalizeStatusForApi = (status: unknown): ApiStatus | string | undefined => {
   if (typeof status !== 'string') {
@@ -47,8 +41,7 @@ export async function upsertReadingState(params: {
   uiStatus: UiStatus;
   notes?: string | null;
 }) {
-  const token = getAuthToken();
-  if (!token) return null;
+  if (!resolveAuthToken()) return null;
 
   const body = {
     userId: params.userId,
@@ -57,10 +50,9 @@ export async function upsertReadingState(params: {
     notes: params.notes?.trim() ? params.notes.trim() : undefined,
   };
 
-  const { data } = await axios.post(
-    `${URL_BASE}/reading-states/upsert`,
-    body,
-    { headers: authHeaders() }
+  const { data } = await apiClient.post(
+    '/reading-states/upsert',
+    body
   );
   return data as {
     id: string;
@@ -86,8 +78,7 @@ type ReadingStateUpdatePayload = {
 };
 
 export const createReadingState = async (readingStateData: ReadingStateCreatePayload) => {
-  const token = getAuthToken();
-  if (!token) return null;
+  if (!resolveAuthToken()) return null;
 
   const normalizedStatus = normalizeStatusForApi(readingStateData.status);
   const payload = {
@@ -102,38 +93,38 @@ export const createReadingState = async (readingStateData: ReadingStateCreatePay
     delete payload.state;
   }
 
-  const { data } = await axios.post(
-    `${URL_BASE}/reading-states`,
-    payload,
-    { headers: authHeaders() }
+  const { data } = await apiClient.post(
+    '/reading-states',
+    payload
   );
   return data;
 };
 
-export const getAllReadingStates = async () => {
-  const token = getAuthToken();
-  if (!token) return null;
+export type ReadingStateRecord = {
+  id?: string | number;
+  userId?: string | number;
+  state?: ApiStatus | string;
+  [key: string]: unknown;
+};
 
-  const { data } = await axios.get(`${URL_BASE}/reading-states`, {
-    headers: authHeaders(),
-  });
-  return data;
+export const getAllReadingStates = async (): Promise<ReadingStateRecord[] | null> => {
+  if (!resolveAuthToken()) return null;
+
+  const { data } = await apiClient.get<ReadingStateRecord[]>('/reading-states');
+  return Array.isArray(data) ? data : null;
 };
 
 export const getReadingStatesByUser = async (userId: string) => {
-  const token = getAuthToken();
-  if (!token) return null;
+  if (!resolveAuthToken()) return null;
 
-  const { data } = await axios.get(
-    `${URL_BASE}/reading-states/user/${userId}`,
-    { headers: authHeaders() }
+  const { data } = await apiClient.get(
+    `/reading-states/user/${toPathSegment(userId)}`
   );
   return data;
 };
 
 export const updateReadingState = async (id: string, updateData: ReadingStateUpdatePayload) => {
-  const token = getAuthToken();
-  if (!token) return null;
+  if (!resolveAuthToken()) return null;
 
   const normalizedStatus = normalizeStatusForApi(updateData.status);
   const payload = {
@@ -148,21 +139,18 @@ export const updateReadingState = async (id: string, updateData: ReadingStateUpd
     delete payload.state;
   }
 
-  const { data } = await axios.patch(
-    `${URL_BASE}/reading-states/${id}`,
-    payload,
-    { headers: authHeaders() }
+  const { data } = await apiClient.patch(
+    `/reading-states/${toPathSegment(id)}`,
+    payload
   );
   return data;
 };
 
 export const deleteReadingState = async (id: string) => {
-  const token = getAuthToken();
-  if (!token) return null;
+  if (!resolveAuthToken()) return null;
 
-  const { data } = await axios.delete(
-    `${URL_BASE}/reading-states/${id}`,
-    { headers: authHeaders() }
+  const { data } = await apiClient.delete(
+    `/reading-states/${toPathSegment(id)}`
   );
   return data;
 };
