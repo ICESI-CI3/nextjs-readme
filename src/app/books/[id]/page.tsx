@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useEffect, useState } from 'react';
+import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
 import { notFound, useParams, useRouter } from 'next/navigation';
 import Input from '@/components/Form/Input';
@@ -99,12 +99,12 @@ const formatAuthors = (value: unknown): string => {
     }
   }
   if (typeof value === 'string') {
-    const normalized = value
+    const names = value
       .split(',')
       .map((entry) => entry.trim())
       .filter(Boolean);
-    if (normalized.length) {
-      return normalized.join(', ');
+    if (names.length) {
+      return names.join(', ');
     }
     if (value.trim()) {
       return value.trim();
@@ -113,17 +113,23 @@ const formatAuthors = (value: unknown): string => {
   return 'Unknown author';
 };
 
+const formatDate = (value?: string | null): string => {
+  if (!value) return 'N/A';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleDateString();
+};
+
 const BookDetailPage = () => {
   const router = useRouter();
   const params = useParams<{ id: string }>();
   const user = useAuthStore((state) => state.user);
   const role = useAuthStore((state) => state.user?.role ?? 'reader');
-  const normalizedRole = (role ?? 'reader').toString().toLowerCase();
-  const isAdmin = normalizedRole === 'admin';
+  const isAdmin = (role ?? 'reader').toString().toLowerCase() === 'admin';
 
+  const [source, setSource] = useState<'local' | 'google' | null>(null);
   const [book, setBook] = useState<LocalBook | null>(null);
   const [googleVolume, setGoogleVolume] = useState<GoogleVolume | null>(null);
-  const [source, setSource] = useState<'local' | 'google' | null>(null);
 
   const [form, setForm] = useState<LocalBook>({
     title: '',
@@ -137,9 +143,9 @@ const BookDetailPage = () => {
   const [bookIdentifier, setBookIdentifier] = useState<string | null>(null);
 
   const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [removing, setRemoving] = useState(false);
-  const [editing, setEditing] = useState(false);
 
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -161,9 +167,8 @@ const BookDetailPage = () => {
   const [reviewSubmitting, setReviewSubmitting] = useState(false);
   const [reviewSuccess, setReviewSuccess] = useState<string | null>(null);
 
-  const paramId = params?.id ?? '';
-  const decodedId = paramId ? decodeURIComponent(paramId) : null;
-
+  const rawId = params?.id ?? '';
+  const decodedId = rawId ? decodeURIComponent(rawId) : null;
   const detailPath = decodedId ? `/books/${encodeURIComponent(decodedId)}` : '/books';
   const loginRedirect = `/login?redirectTo=${encodeURIComponent(detailPath)}`;
 
@@ -173,38 +178,36 @@ const BookDetailPage = () => {
       return;
     }
 
-    let active = true;
+    let ignore = false;
 
     const load = async () => {
       setLoading(true);
       setError(null);
       setSuccess(null);
       setSource(null);
-      setGoogleVolume(null);
       setBook(null);
-
-      let resolved = false;
+      setGoogleVolume(null);
 
       try {
-        const data = await getBookById(decodedId);
-        if (!active) return;
-        if (data) {
-          resolved = true;
+        const localBook = await getBookById(decodedId);
+        if (!ignore && localBook) {
           setSource('local');
-          setBook(data);
-          setGoogleVolume(null);
+          setBook(localBook);
           setBookIdentifier(
-            typeof data.title === 'string' && data.title.trim() ? data.title : null,
+            typeof localBook.title === 'string' && localBook.title.trim()
+              ? localBook.title
+              : null,
           );
           setForm({
-            title: data.title ?? '',
-            authors: data.authors ?? '',
-            isbn: data.isbn ?? '',
-            cover: data.cover ?? '',
-            status: (data.status as LocalBook['status']) ?? 'pending',
-            description: data.description ?? '',
-            publishedDate: data.publishedDate ?? '',
+            title: localBook.title ?? '',
+            authors: localBook.authors ?? '',
+            isbn: localBook.isbn ?? '',
+            cover: localBook.cover ?? '',
+            status: (localBook.status as LocalBook['status']) ?? 'pending',
+            description: localBook.description ?? '',
+            publishedDate: localBook.publishedDate ?? '',
           });
+          return;
         }
       } catch (err) {
         if (process.env.NODE_ENV !== 'production') {
@@ -212,36 +215,31 @@ const BookDetailPage = () => {
         }
       }
 
-      if (!resolved) {
-        try {
-          const volume = await getGoogleBookById(decodedId);
-          if (!active) return;
-          if (volume) {
-            resolved = true;
-            setSource('google');
-            setGoogleVolume(volume);
-            setBookIdentifier(volume.volumeInfo?.title ?? null);
-          }
-        } catch (err) {
-          if (process.env.NODE_ENV !== 'production') {
-            console.error('Unable to load Google Books volume', err);
-          }
+      try {
+        const volume = await getGoogleBookById(decodedId);
+        if (!ignore && volume) {
+          setSource('google');
+          setGoogleVolume(volume);
+          setBookIdentifier(volume.volumeInfo?.title ?? null);
+          return;
+        }
+      } catch (err) {
+        if (process.env.NODE_ENV !== 'production') {
+          console.error('Unable to load Google Books volume', err);
         }
       }
 
-      if (!resolved && active) {
+      if (!ignore) {
         setError('Unable to load this book. It may have been removed.');
-      }
-
-      if (active) {
-        setLoading(false);
       }
     };
 
-    load();
+    load().finally(() => {
+      if (!ignore) setLoading(false);
+    });
 
     return () => {
-      active = false;
+      ignore = true;
     };
   }, [decodedId]);
 
@@ -258,26 +256,23 @@ const BookDetailPage = () => {
       return;
     }
 
-    let active = true;
+    let ignore = false;
 
     const loadStatus = async () => {
       setReadingLoading(true);
       setReadingError(null);
       try {
         const data = await getReadingStatesByUser(String(user.id));
-        if (!active || !data) {
-          return;
-        }
+        if (ignore || !data) return;
         const list = Array.isArray(data) ? data : [data];
-        const match = list.find((state) => {
-          if (!state) return false;
+        const match = list.find((entry) => {
+          if (!entry) return false;
           if (source === 'local') {
             const candidate =
-              (state.bookId ?? (state as { book?: { id?: unknown } }).book?.id) ??
-              null;
+              (entry.bookId ?? (entry as { book?: { id?: unknown } }).book?.id) ?? null;
             return candidate !== null && String(candidate) === decodedId;
           }
-          const googleId = (state as { googleId?: unknown }).googleId;
+          const googleId = (entry as { googleId?: unknown }).googleId;
           return googleId !== undefined && String(googleId) === decodedId;
         });
         if (match) {
@@ -289,22 +284,19 @@ const BookDetailPage = () => {
         }
       } catch (err) {
         if (process.env.NODE_ENV !== 'production') {
-          console.error('Unable to load reading state', err);
+          console.error('Unable to load reading status', err);
         }
-        if (active) {
+        if (!ignore) {
           setReadingError('Unable to load your reading status.');
         }
       } finally {
-        if (active) {
-          setReadingLoading(false);
-        }
+        if (!ignore) setReadingLoading(false);
       }
     };
 
     loadStatus();
-
     return () => {
-      active = false;
+      ignore = true;
     };
   }, [user?.id, decodedId, source]);
 
@@ -314,47 +306,44 @@ const BookDetailPage = () => {
       return;
     }
 
-    let active = true;
+    let ignore = false;
 
     const loadReviews = async () => {
       setReviewsLoading(true);
       setReviewsError(null);
       try {
         const data = await getReviewsByBook(book.id as string | number);
-        if (!active) return;
-        const list = Array.isArray(data) ? data : data ? [data] : [];
-        setReviews(list);
+        if (!ignore) {
+          const list = Array.isArray(data) ? data : data ? [data] : [];
+          setReviews(list);
+        }
       } catch (err) {
         if (process.env.NODE_ENV !== 'production') {
           console.error('Unable to load reviews', err);
         }
-        if (active) {
+        if (!ignore) {
           setReviewsError('Unable to load reviews right now.');
         }
       } finally {
-        if (active) {
-          setReviewsLoading(false);
-        }
+        if (!ignore) setReviewsLoading(false);
       }
     };
 
     loadReviews();
-
     return () => {
-      active = false;
+      ignore = true;
     };
   }, [source, book?.id]);
-
-  const updateField = <Key extends keyof LocalBook>(key: Key, value: LocalBook[Key]) => {
-    setForm((prev) => ({ ...prev, [key]: value }));
-  };
 
   const identifier =
     bookIdentifier ??
     (typeof book?.title === 'string' && book.title.trim() ? book.title : '') ??
     '';
 
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+  const handleUpdateField = <Key extends keyof LocalBook>(key: Key, value: LocalBook[Key]) => {
+    setForm((prev) => ({ ...prev, [key]: value }));
+  };
+  const handleSave = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!isAdmin || source !== 'local') return;
     if (!identifier) {
@@ -362,19 +351,16 @@ const BookDetailPage = () => {
       return;
     }
 
+    setSaving(true);
     setError(null);
     setSuccess(null);
-    setSaving(true);
-
     try {
       const updated = await updateBook(identifier, form);
       setSuccess('Book updated successfully.');
       setEditing(false);
       setBook((prev) => {
-        if (updated) {
-          return { ...(prev ?? {}), ...updated };
-        }
-        return prev ? { ...prev, ...form } : prev;
+        if (!updated) return prev ? { ...prev, ...form } : prev;
+        return { ...(prev ?? {}), ...updated };
       });
       const nextIdentifier =
         (updated && typeof updated.title === 'string' && updated.title.trim()
@@ -399,6 +385,7 @@ const BookDetailPage = () => {
       setError('Unable to update this book because its original title is missing.');
       return;
     }
+
     setError(null);
     setRemoving(true);
     try {
@@ -414,8 +401,7 @@ const BookDetailPage = () => {
     }
   };
 
-  const handleReadingStatusSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
+  const persistReadingStatus = async (nextStatus: UiStatus) => {
     if (!decodedId || !source) return;
     if (!user?.id) {
       router.push(loginRedirect);
@@ -425,29 +411,25 @@ const BookDetailPage = () => {
     setReadingError(null);
     setReadingSuccess(null);
     setReadingBusy(true);
-
     try {
       if (source === 'google') {
         const result = await upsertReadingState({
           userId: String(user.id),
           googleId: decodedId,
-          uiStatus: readingStatus,
+          uiStatus: nextStatus,
         });
         if (result?.id) {
           setReadingStateId(String(result.id));
         }
       } else if (source === 'local') {
-        if (!book?.id) {
-          setReadingBusy(false);
-          return;
-        }
+        if (!book?.id) return;
         if (readingStateId) {
-          await updateReadingState(readingStateId, { status: readingStatus });
+          await updateReadingState(readingStateId, { status: nextStatus });
         } else {
           const created = await createReadingState({
             userId: user.id,
             bookId: book.id,
-            status: readingStatus,
+            status: nextStatus,
           });
           if (created?.id) {
             setReadingStateId(String(created.id));
@@ -465,6 +447,12 @@ const BookDetailPage = () => {
     }
   };
 
+  const handleReadingStatusChange = async (event: ChangeEvent<HTMLSelectElement>) => {
+    const nextValue = event.target.value as UiStatus;
+    setReadingStatus(nextValue);
+    await persistReadingStatus(nextValue);
+  };
+
   const handleSubmitReview = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (source !== 'local' || !book?.id) return;
@@ -472,10 +460,13 @@ const BookDetailPage = () => {
       router.push(loginRedirect);
       return;
     }
-    if (!reviewForm.text.trim()) {
+
+    const trimmed = reviewForm.text.trim();
+    if (!trimmed) {
       setReviewsError('Write a short review before submitting.');
       return;
     }
+
     const ratingValue = Number(reviewForm.rating);
     if (Number.isNaN(ratingValue) || ratingValue < 1 || ratingValue > 5) {
       setReviewsError('Rating must be between 1 and 5.');
@@ -485,13 +476,12 @@ const BookDetailPage = () => {
     setReviewsError(null);
     setReviewSuccess(null);
     setReviewSubmitting(true);
-
     try {
       await createReview({
         bookId: book.id,
         rating: ratingValue,
-        text: reviewForm.text,
-        comment: reviewForm.text,
+        text: trimmed,
+        comment: trimmed,
         userId: user.id,
       });
       setReviewForm({ rating: '5', text: '' });
@@ -509,9 +499,28 @@ const BookDetailPage = () => {
     }
   };
 
-  if (!decodedId) {
-    return null;
-  }
+  const catalogBadge =
+    source === 'local' && (book?.status ?? '').toString().trim().length ? (
+      <span className="rounded-full border border-slate-300 bg-white px-3 py-1 text-xs font-semibold uppercase text-slate-600">
+        Catalog: {(book?.status ?? '').toString()}
+      </span>
+    ) : null;
+
+  const googleBadge =
+    source === 'google' ? (
+      <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold uppercase text-emerald-700">
+        Google Books
+      </span>
+    ) : null;
+
+  const sortedReviews = useMemo(() => {
+    if (!reviews.length) return [];
+    return [...reviews].sort((a, b) => {
+      const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return bTime - aTime;
+    });
+  }, [reviews]);
 
   const displayTitle =
     (source === 'local' && book?.title) ||
@@ -524,9 +533,7 @@ const BookDetailPage = () => {
       : formatAuthors(googleVolume?.volumeInfo?.authors ?? []);
 
   const displayIsbn =
-    source === 'local'
-      ? book?.isbn
-      : extractPrimaryIsbn(googleVolume) ?? undefined;
+    source === 'local' ? book?.isbn : extractPrimaryIsbn(googleVolume) ?? undefined;
 
   const coverUrl =
     source === 'local'
@@ -544,23 +551,69 @@ const BookDetailPage = () => {
     (source === 'local' && book?.publishedDate) ||
     (source === 'google' && googleVolume?.volumeInfo?.publishedDate) ||
     null;
+  if (!decodedId) {
+    return null;
+  }
 
   return (
     <section className="space-y-6">
-      <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-        <div>
-          <h1 className="text-2xl font-semibold text-slate-900">{displayTitle}</h1>
-          <p className="text-sm text-slate-500">
-            {source === 'google'
-              ? 'Details fetched from Google Books. Track the title directly from here.'
-              : 'View book metadata, availability, and description.'}
-          </p>
-          {source === 'local' && !isAdmin ? (
-            <p className="mt-1 text-xs uppercase tracking-wide text-slate-400">
-              Only administrators can edit or remove books.
+      <header className="space-y-3">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="space-y-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-2xl font-semibold text-slate-900">{displayTitle}</h1>
+              {catalogBadge}
+              {googleBadge}
+            </div>
+            <p className="text-sm text-slate-500">
+              {source === 'google'
+                ? 'Details fetched from Google Books. Track the title directly from here.'
+                : 'View book metadata, availability, and community feedback.'}
             </p>
+            {source === 'local' && !isAdmin ? (
+              <p className="text-xs uppercase tracking-wide text-slate-400">
+                Only administrators can edit or remove books.
+              </p>
+            ) : null}
+          </div>
+
+          {source ? (
+            <div className="flex flex-col items-end gap-2">
+              <span className="text-xs font-semibold uppercase text-slate-500">
+                Reading status
+              </span>
+              {user ? (
+                <div className="flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-3 py-1">
+                  <select
+                    aria-label="Reading status"
+                    value={readingStatus}
+                    onChange={handleReadingStatusChange}
+                    disabled={readingBusy || readingLoading}
+                    className="bg-transparent text-sm font-semibold text-blue-700 outline-none"
+                  >
+                    {readingStatusOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="text-[11px] font-medium text-blue-600">
+                    {readingBusy ? 'Saving...' : readingSuccess ? 'Saved' : ''}
+                  </span>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => router.push(loginRedirect)}
+                  className="rounded-full border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-600 transition hover:border-slate-400 hover:text-slate-800"
+                >
+                  Log in to track
+                </button>
+              )}
+            </div>
           ) : null}
         </div>
+
         {source === 'local' && isAdmin ? (
           <div className="flex gap-2">
             <button
@@ -584,7 +637,9 @@ const BookDetailPage = () => {
       </header>
 
       {error ? <Toast message={error} type="error" onDismiss={() => setError(null)} /> : null}
-      {success ? <Toast message={success} type="success" onDismiss={() => setSuccess(null)} /> : null}
+      {success ? (
+        <Toast message={success} type="success" onDismiss={() => setSuccess(null)} />
+      ) : null}
       {readingError ? (
         <Toast message={readingError} type="error" onDismiss={() => setReadingError(null)} />
       ) : null}
@@ -604,291 +659,242 @@ const BookDetailPage = () => {
           <div className="h-24 animate-pulse rounded-lg bg-slate-200" />
         </div>
       ) : source === 'local' && book ? (
-        <>
-          <div className="grid gap-6 lg:grid-cols-[280px,1fr]">
-            <aside className="space-y-4 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-              {coverUrl ? (
-                <div className="relative h-64 w-full overflow-hidden rounded-md border border-slate-100">
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,1.3fr),minmax(320px,1fr)]">
+          <div className="space-y-6">
+            <div className="grid gap-4 rounded-lg border border-slate-200 bg-white p-6 shadow-sm md:grid-cols-[200px,1fr]">
+              <div className="relative h-64 w-full overflow-hidden rounded-md border border-slate-100 md:h-full">
+                {coverUrl ? (
                   <Image
                     src={coverUrl}
                     alt={`${book.title ?? 'Book'} cover`}
                     fill
                     className="object-cover"
-                    sizes="(max-width: 1024px) 100vw, 280px"
+                    sizes="(max-width: 1024px) 100vw, 200px"
                     unoptimized
                   />
-                </div>
-              ) : (
-                <div className="flex h-64 w-full items-center justify-center rounded-md border border-dashed border-slate-300 bg-slate-100 px-4 text-center text-sm text-slate-400">
-                  No cover available
-                </div>
-              )}
-              <dl className="space-y-2 text-sm text-slate-600">
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center bg-slate-100 px-4 text-center text-sm text-slate-400">
+                    No cover available
+                  </div>
+                )}
+              </div>
+              <dl className="grid gap-3 text-sm text-slate-600">
                 <div className="flex justify-between gap-4">
                   <dt className="font-medium text-slate-500">Title</dt>
-                  <dd className="text-right text-slate-700">
-                    {book.title ?? 'N/A'}
-                  </dd>
+                  <dd className="text-right text-slate-700">{book.title ?? 'N/A'}</dd>
                 </div>
                 <div className="flex justify-between gap-4">
                   <dt className="font-medium text-slate-500">Authors</dt>
-                  <dd className="text-right text-slate-700">
-                    {formatAuthors(book.authors)}
-                  </dd>
+                  <dd className="text-right text-slate-700">{formatAuthors(book.authors)}</dd>
                 </div>
                 <div className="flex justify-between gap-4">
                   <dt className="font-medium text-slate-500">ISBN</dt>
                   <dd className="text-right text-slate-700">{book.isbn ?? 'N/A'}</dd>
                 </div>
                 <div className="flex justify-between gap-4">
-                  <dt className="font-medium text-slate-500">Catalog status</dt>
-                  <dd className="text-right font-semibold uppercase text-blue-600">
-                    {book.status ?? 'pending'}
-                  </dd>
+                  <dt className="font-medium text-slate-500">Published</dt>
+                  <dd className="text-right text-slate-700">{formatDate(publishedDate)}</dd>
                 </div>
-                {publishedDate ? (
-                  <div className="flex justify-between gap-4">
-                    <dt className="font-medium text-slate-500">Published</dt>
-                    <dd className="text-right text-slate-700">{publishedDate}</dd>
-                  </div>
-                ) : null}
               </dl>
+            </div>
 
-              <div className="rounded-md border border-slate-200 bg-slate-50 p-4">
-                <h3 className="text-sm font-semibold text-slate-800">Your reading status</h3>
-                <p className="mt-1 text-xs text-slate-500">
-                  Track this title without leaving the details page.
-                </p>
-                {user ? (
-                  <form onSubmit={handleReadingStatusSubmit} className="mt-3 space-y-3">
-                    <Select
-                      label="Status"
-                      value={readingStatus}
-                      onChange={(event) => setReadingStatus(event.target.value as UiStatus)}
-                      options={readingStatusOptions}
-                      disabled={readingLoading || readingBusy}
-                    />
-                    <button
-                      type="submit"
-                      className="w-full rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300"
-                      disabled={readingLoading || readingBusy}
-                    >
-                      {readingBusy ? 'Saving...' : 'Update status'}
-                    </button>
-                  </form>
-                ) : (
+            {isAdmin && editing ? (
+              <form
+                onSubmit={handleSave}
+                className="space-y-4 rounded-lg border border-slate-200 bg-white p-6 shadow-sm"
+              >
+                <div className="grid gap-4 md:grid-cols-2">
+                  <Input
+                    label="Title"
+                    value={form.title}
+                    onChange={(event) => handleUpdateField('title', event.target.value)}
+                    required
+                  />
+                  <Input
+                    label="Authors"
+                    value={form.authors}
+                    onChange={(event) => handleUpdateField('authors', event.target.value)}
+                    required
+                  />
+                  <Input
+                    label="ISBN"
+                    value={form.isbn}
+                    onChange={(event) => handleUpdateField('isbn', event.target.value)}
+                    required
+                  />
+                  <Input
+                    label="Cover URL"
+                    value={form.cover ?? ''}
+                    onChange={(event) => handleUpdateField('cover', event.target.value)}
+                  />
+                  <Select
+                    label="Catalog status"
+                    value={form.status ?? 'pending'}
+                    onChange={(event) =>
+                      handleUpdateField('status', event.target.value as LocalBook['status'])
+                    }
+                    options={catalogStatusOptions}
+                  />
+                  <Input
+                    label="Published"
+                    value={form.publishedDate ?? ''}
+                    onChange={(event) => handleUpdateField('publishedDate', event.target.value)}
+                  />
+                </div>
+                <Textarea
+                  label="Description"
+                  value={form.description ?? ''}
+                  onChange={(event) => handleUpdateField('description', event.target.value)}
+                />
+                <div className="flex justify-end gap-3">
                   <button
                     type="button"
-                    onClick={() => router.push(loginRedirect)}
-                    className="mt-3 w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-600 transition hover:border-slate-400 hover:text-slate-800"
+                    onClick={() => setEditing(false)}
+                    className="rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-600 transition hover:border-slate-400 hover:text-slate-800"
                   >
-                    Log in to track this book
+                    Cancel
                   </button>
-                )}
-              </div>
-            </aside>
-            <div className="space-y-4">
-              {isAdmin && editing ? (
-                <form
-                  onSubmit={handleSubmit}
-                  className="space-y-4 rounded-lg border border-slate-200 bg-white p-6 shadow-sm"
-                >
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <Input
-                      label="Title"
-                      value={form.title}
-                      onChange={(event) => updateField('title', event.target.value)}
-                      required
-                    />
-                    <Input
-                      label="Authors"
-                      value={form.authors}
-                      onChange={(event) => updateField('authors', event.target.value)}
-                      required
-                    />
-                    <Input
-                      label="ISBN"
-                      value={form.isbn}
-                      onChange={(event) => updateField('isbn', event.target.value)}
-                      required
-                    />
-                    <Input
-                      label="Cover URL"
-                      value={form.cover ?? ''}
-                      onChange={(event) => updateField('cover', event.target.value)}
-                    />
-                    <Select
-                      label="Catalog status"
-                      value={form.status ?? 'pending'}
-                      onChange={(event) =>
-                        updateField('status', event.target.value as LocalBook['status'])
-                      }
-                      options={catalogStatusOptions}
-                    />
-                    <Input
-                      label="Published"
-                      value={form.publishedDate ?? ''}
-                      onChange={(event) => updateField('publishedDate', event.target.value)}
-                    />
-                  </div>
-                  <Textarea
-                    label="Description"
-                    value={form.description ?? ''}
-                    onChange={(event) => updateField('description', event.target.value)}
-                  />
-                  <div className="flex justify-end gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setEditing(false)}
-                      className="rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-600 transition hover:border-slate-400 hover:text-slate-800"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300"
-                      disabled={saving}
-                    >
-                      {saving ? 'Saving...' : 'Save changes'}
-                    </button>
-                  </div>
-                </form>
-              ) : (
-                <article className="space-y-4 rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-                  <h2 className="text-lg font-semibold text-slate-800">Description</h2>
-                  <p className="text-sm text-slate-600">
-                    {description ?? 'No description provided yet.'}
-                  </p>
-                </article>
-              )}
-            </div>
-          </div>
-
-          <section className="space-y-4 rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-            <header className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h2 className="text-lg font-semibold text-slate-800">Community reviews</h2>
-                <p className="text-sm text-slate-500">
-                  Read what others think and add your perspective.
-                </p>
-              </div>
-            </header>
-            {reviewsLoading ? (
-              <div className="grid gap-3">
-                {Array.from({ length: 3 }).map((_, index) => (
-                  <div
-                    key={index}
-                    className="h-20 animate-pulse rounded-md border border-slate-200 bg-slate-100"
-                  />
-                ))}
-              </div>
-            ) : reviews.length ? (
-              <ul className="space-y-4">
-                {reviews.map((review) => (
-                  <li
-                    key={(review.id ?? crypto.randomUUID()).toString()}
-                    className="rounded-md border border-slate-200 bg-slate-50 p-4"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-semibold text-slate-800">
-                        Rating: {Number(review.rating ?? review.status ?? 0) || 0}/5
-                      </span>
-                      <span className="text-xs text-slate-400">
-                        {review.createdAt
-                          ? new Date(review.createdAt).toLocaleDateString()
-                          : 'Recently'}
-                      </span>
-                    </div>
-                    <p className="mt-2 text-sm text-slate-600">
-                      {(review.text ?? review.comment ?? '').toString() || 'No review text.'}
-                    </p>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <div className="rounded-md border border-dashed border-slate-200 bg-white p-6 text-center text-sm text-slate-500">
-                No reviews yet. Be the first to share your thoughts.
-              </div>
-            )}
-
-            {user ? (
-              <form
-                onSubmit={handleSubmitReview}
-                className="space-y-4 rounded-md border border-slate-200 bg-white p-5"
-              >
-                <div className="grid gap-4 sm:grid-cols-[160px,1fr]">
-                  <Select
-                    label="Your rating"
-                    value={reviewForm.rating}
-                    onChange={(event) =>
-                      setReviewForm((prev) => ({ ...prev, rating: event.target.value }))
-                    }
-                    options={[
-                      { value: '5', label: '5 - Excellent' },
-                      { value: '4', label: '4 - Good' },
-                      { value: '3', label: '3 - Average' },
-                      { value: '2', label: '2 - Fair' },
-                      { value: '1', label: '1 - Poor' },
-                    ]}
-                    required
-                  />
-                  <Textarea
-                    label="Your review"
-                    value={reviewForm.text}
-                    onChange={(event) =>
-                      setReviewForm((prev) => ({ ...prev, text: event.target.value }))
-                    }
-                    placeholder="What stood out to you?"
-                    required
-                  />
-                </div>
-                <div className="flex justify-end">
                   <button
                     type="submit"
                     className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300"
-                    disabled={reviewSubmitting}
+                    disabled={saving}
                   >
-                    {reviewSubmitting ? 'Saving...' : 'Submit review'}
+                    {saving ? 'Saving...' : 'Save changes'}
                   </button>
                 </div>
               </form>
             ) : (
-              <div className="rounded-md border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-                <p>
-                  <button
-                    type="button"
-                    onClick={() => router.push(loginRedirect)}
-                    className="font-semibold text-blue-600 hover:text-blue-700"
-                  >
-                    Log in
-                  </button>{' '}
-                  to write a review for this book.
+              <article className="space-y-4 rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+                <h2 className="text-lg font-semibold text-slate-800">Description</h2>
+                <p className="text-sm text-slate-600">
+                  {description ?? 'No description provided yet.'}
                 </p>
-              </div>
+              </article>
             )}
-          </section>
-        </>
+          </div>
+
+          <div className="space-y-6">
+            <section className="space-y-4 rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+              <header>
+                <h2 className="text-lg font-semibold text-slate-800">Review history</h2>
+                <p className="text-sm text-slate-500">
+                  Read what others think about this title.
+                </p>
+              </header>
+              {reviewsLoading ? (
+                <div className="grid gap-3">
+                  {Array.from({ length: 3 }).map((_, index) => (
+                    <div
+                      key={index}
+                      className="h-20 animate-pulse rounded-md border border-slate-200 bg-slate-100"
+                    />
+                  ))}
+                </div>
+              ) : sortedReviews.length ? (
+                <ul className="space-y-3">
+                  {sortedReviews.map((review) => (
+                    <li
+                      key={(review.id ?? crypto.randomUUID()).toString()}
+                      className="rounded-md border border-slate-200 bg-slate-50 p-4"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-semibold text-slate-800">
+                          Rating: {Number(review.rating ?? review.status ?? 0) || 0}/5
+                        </span>
+                        <span className="text-xs text-slate-400">
+                          {review.createdAt ? formatDate(review.createdAt) : 'Recently'}
+                        </span>
+                      </div>
+                      <p className="mt-2 text-sm text-slate-600">
+                        {(review.text ?? review.comment ?? '').toString() || 'No review text.'}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <div className="rounded-md border border-dashed border-slate-200 bg-white p-6 text-center text-sm text-slate-500">
+                  No reviews yet. Be the first to share your thoughts.
+                </div>
+              )}
+            </section>
+
+            <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+              {user ? (
+                <form onSubmit={handleSubmitReview} className="space-y-4">
+                  <div className="grid gap-4 sm:grid-cols-[160px,1fr]">
+                    <Select
+                      label="Your rating"
+                      value={reviewForm.rating}
+                      onChange={(event) =>
+                        setReviewForm((prev) => ({ ...prev, rating: event.target.value }))
+                      }
+                      options={[
+                        { value: '5', label: '5 - Excellent' },
+                        { value: '4', label: '4 - Good' },
+                        { value: '3', label: '3 - Average' },
+                        { value: '2', label: '2 - Fair' },
+                        { value: '1', label: '1 - Poor' },
+                      ]}
+                      required
+                    />
+                    <Textarea
+                      label="Your review"
+                      value={reviewForm.text}
+                      onChange={(event) =>
+                        setReviewForm((prev) => ({ ...prev, text: event.target.value }))
+                      }
+                      placeholder="What stood out to you?"
+                      required
+                    />
+                  </div>
+                  <div className="flex justify-end">
+                    <button
+                      type="submit"
+                      className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300"
+                      disabled={reviewSubmitting}
+                    >
+                      {reviewSubmitting ? 'Saving...' : 'Submit review'}
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <div className="rounded-md border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+                  <p>
+                    <button
+                      type="button"
+                      onClick={() => router.push(loginRedirect)}
+                      className="font-semibold text-blue-600 hover:text-blue-700"
+                    >
+                      Log in
+                    </button>{' '}
+                    to write a review for this book.
+                  </p>
+                </div>
+              )}
+            </section>
+          </div>
+        </div>
       ) : source === 'google' && googleVolume ? (
-        <>
-          <div className="grid gap-6 lg:grid-cols-[280px,1fr]">
-            <aside className="space-y-4 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-              {coverUrl ? (
-                <div className="relative h-64 w-full overflow-hidden rounded-md border border-slate-100">
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,1.3fr),minmax(320px,1fr)]">
+          <div className="space-y-6">
+            <div className="grid gap-4 rounded-lg border border-slate-200 bg-white p-6 shadow-sm md:grid-cols-[200px,1fr]">
+              <div className="relative h-64 w-full overflow-hidden rounded-md border border-slate-100 md:h-full">
+                {coverUrl ? (
                   <Image
                     src={coverUrl}
                     alt={`${displayTitle} cover`}
                     fill
                     className="object-cover"
-                    sizes="(max-width: 1024px) 100vw, 280px"
+                    sizes="(max-width: 1024px) 100vw, 200px"
                     unoptimized
                   />
-                </div>
-              ) : (
-                <div className="flex h-64 w-full items-center justify-center rounded-md border border-dashed border-slate-300 bg-slate-100 px-4 text-center text-sm text-slate-400">
-                  No cover available
-                </div>
-              )}
-              <dl className="space-y-2 text-sm text-slate-600">
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center bg-slate-100 px-4 text-center text-sm text-slate-400">
+                    No cover available
+                  </div>
+                )}
+              </div>
+              <dl className="grid gap-3 text-sm text-slate-600">
                 <div className="flex justify-between gap-4">
                   <dt className="font-medium text-slate-500">Title</dt>
                   <dd className="text-right text-slate-700">{displayTitle}</dd>
@@ -901,12 +907,10 @@ const BookDetailPage = () => {
                   <dt className="font-medium text-slate-500">ISBN</dt>
                   <dd className="text-right text-slate-700">{displayIsbn ?? 'N/A'}</dd>
                 </div>
-                {publishedDate ? (
-                  <div className="flex justify-between gap-4">
-                    <dt className="font-medium text-slate-500">Published</dt>
-                    <dd className="text-right text-slate-700">{publishedDate}</dd>
-                  </div>
-                ) : null}
+                <div className="flex justify-between gap-4">
+                  <dt className="font-medium text-slate-500">Published</dt>
+                  <dd className="text-right text-slate-700">{formatDate(publishedDate)}</dd>
+                </div>
                 {googleVolume.volumeInfo?.printType ? (
                   <div className="flex justify-between gap-4">
                     <dt className="font-medium text-slate-500">Format</dt>
@@ -916,40 +920,7 @@ const BookDetailPage = () => {
                   </div>
                 ) : null}
               </dl>
-
-              <div className="rounded-md border border-slate-200 bg-slate-50 p-4">
-                <h3 className="text-sm font-semibold text-slate-800">Your reading status</h3>
-                <p className="mt-1 text-xs text-slate-500">
-                  Save this Google Books title to your reading log.
-                </p>
-                {user ? (
-                  <form onSubmit={handleReadingStatusSubmit} className="mt-3 space-y-3">
-                    <Select
-                      label="Status"
-                      value={readingStatus}
-                      onChange={(event) => setReadingStatus(event.target.value as UiStatus)}
-                      options={readingStatusOptions}
-                      disabled={readingLoading || readingBusy}
-                    />
-                    <button
-                      type="submit"
-                      className="w-full rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300"
-                      disabled={readingLoading || readingBusy}
-                    >
-                      {readingBusy ? 'Saving...' : 'Update status'}
-                    </button>
-                  </form>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => router.push(loginRedirect)}
-                    className="mt-3 w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-600 transition hover:border-slate-400 hover:text-slate-800"
-                  >
-                    Log in to track this book
-                  </button>
-                )}
-              </div>
-            </aside>
+            </div>
 
             <article className="space-y-4 rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
               <h2 className="text-lg font-semibold text-slate-800">Description</h2>
@@ -959,15 +930,17 @@ const BookDetailPage = () => {
             </article>
           </div>
 
-          <section className="rounded-lg border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
-            <h2 className="text-lg font-semibold text-slate-800">Community reviews</h2>
-            <p className="mt-2">
-              Reviews are available for titles saved in the library catalog. Save this
-              book to your reading log to start a discussion once it becomes available
-              locally.
-            </p>
-          </section>
-        </>
+          <div className="space-y-6">
+            <section className="rounded-lg border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
+              <h2 className="text-lg font-semibold text-slate-800">Community reviews</h2>
+              <p className="mt-2">
+                Reviews are available for titles saved in the library catalog. Save this
+                book to your reading log and, once it is added locally, start the discussion
+                here.
+              </p>
+            </section>
+          </div>
+        </div>
       ) : (
         <div className="rounded-lg border border-dashed border-slate-300 bg-white p-10 text-center text-sm text-slate-500">
           Book not found.

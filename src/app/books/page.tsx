@@ -249,7 +249,7 @@ const BooksPage = () => {
       if (googleResult.status === 'fulfilled' && googleResult.value) {
         const items = Array.isArray(googleResult.value.items) ? googleResult.value.items : [];
         aggregated.push(...items.map(mapGoogleVolume));
-      } else {
+      } else if (googleResult.status === 'rejected') {
         console.error('Google Books search failed', googleResult.reason);
         partial = true;
       }

@@ -181,7 +181,22 @@ export const searchGoogleBooks = async ({
     return data ?? null;
   } catch (error) {
     if (axios.isAxiosError(error) && error.code === "ECONNABORTED") {
-      throw new Error("Google Books request timed out. Please try again in a moment.");
+      if (process.env.NODE_ENV !== "production") {
+        console.warn("Google Books search timed out, returning empty result set.");
+      }
+      return { items: [] };
+    }
+    if (
+      axios.isAxiosError(error) &&
+      typeof error.response?.status === "number" &&
+      error.response.status >= 500
+    ) {
+      if (process.env.NODE_ENV !== "production") {
+        console.warn(
+          `Google Books search failed with status ${error.response.status}, returning empty result set.`
+        );
+      }
+      return { items: [] };
     }
     throw new Error(
       normalizeErrorMessage(
@@ -209,7 +224,22 @@ export const getGoogleBookById = async (
     return data ?? null;
   } catch (error) {
     if (axios.isAxiosError(error) && error.code === "ECONNABORTED") {
-      throw new Error("Google Books request timed out. Please try again in a moment.");
+      if (process.env.NODE_ENV !== "production") {
+        console.warn("Google Books volume lookup timed out, returning null.");
+      }
+      return null;
+    }
+    if (
+      axios.isAxiosError(error) &&
+      typeof error.response?.status === "number" &&
+      error.response.status >= 500
+    ) {
+      if (process.env.NODE_ENV !== "production") {
+        console.warn(
+          `Google Books volume lookup failed with status ${error.response.status}, returning null.`
+        );
+      }
+      return null;
     }
     throw new Error(
       normalizeErrorMessage(
