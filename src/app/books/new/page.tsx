@@ -120,6 +120,7 @@ const BookCreatePage = () => {
             value={form.title}
             onChange={(event) => updateField('title', event.target.value)}
             required
+            data-testid="book-title-input"
           />
           <Input
             label="Authors"
