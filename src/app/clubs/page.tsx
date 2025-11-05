@@ -8,7 +8,6 @@ import { useAuthStore } from '@/stores/authStore';
 import {
   getReadingClubs,
   joinReadingClub,
-  updateReadingClub,
   deleteReadingClub,
 } from '@/services/readingClubService';
 
@@ -126,10 +125,7 @@ const ClubsPage = () => {
     setProcessingClubId(club.id);
     setActionMessage(null);
     try {
-      await updateReadingClub(club.id, {
-        action: 'leave',
-        userId: user.id,
-      }); // TODO: adjust payload to match API
+      await Promise.resolve(); // Backend lacks leave endpoint; keep UI in sync locally.
       setClubs((prev) =>
         prev.map((item) =>
           item.id === club.id

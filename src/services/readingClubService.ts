@@ -1,5 +1,4 @@
-import axios from "axios";
-import { URL_BASE } from "../constants/global";
+import apiClient, { resolveAuthToken } from "./apiClient";
 
 type Serializable =
   | string
@@ -48,13 +47,10 @@ export type ClubRecord = {
   [key: string]: unknown;
 };
 
-const getToken = (): string | null =>
-  typeof window === "undefined" ? null : localStorage.getItem("token");
+const toPathSegment = (value: string | number): string =>
+  encodeURIComponent(String(value));
 
-const getAuthHeaders = (): { Authorization: string } | null => {
-  const token = getToken();
-  return token ? { Authorization: `Bearer ${token}` } : null;
-};
+const requireAuth = (): string | null => resolveAuthToken();
 
 const sanitizePayload = (
   input: Record<string, Serializable | undefined | null> = {}
@@ -72,29 +68,21 @@ const sanitizePayload = (
 export const createReadingClub = async (
   clubData: Record<string, Serializable | undefined | null>
 ): Promise<ClubRecord | null> => {
-  const headers = getAuthHeaders();
-  if (!headers) return null;
+  if (!requireAuth()) return null;
 
   const payload = sanitizePayload(clubData);
-  const { data } = await axios.post<ClubRecord>(
-    `${URL_BASE}/reading-clubs`,
-    payload,
-    {
-      headers,
-    }
+  const { data } = await apiClient.post<ClubRecord>(
+    '/reading-clubs',
+    payload
   );
   return (data ?? null) as ClubRecord | null;
 };
 
 export const getReadingClubs = async (): Promise<ClubRecord[] | null> => {
-  const headers = getAuthHeaders();
-  if (!headers) return null;
+  if (!requireAuth()) return null;
 
-  const { data } = await axios.get<ClubRecord[]>(
-    `${URL_BASE}/reading-clubs`,
-    {
-      headers,
-    }
+  const { data } = await apiClient.get<ClubRecord[]>(
+    '/reading-clubs'
   );
   return (data ?? null) as ClubRecord[] | null;
 };
@@ -102,14 +90,10 @@ export const getReadingClubs = async (): Promise<ClubRecord[] | null> => {
 export const getReadingClubById = async (
   id: string | number
 ): Promise<ClubRecord | null> => {
-  const headers = getAuthHeaders();
-  if (!headers) return null;
+  if (!requireAuth()) return null;
 
-  const { data } = await axios.get<ClubRecord>(
-    `${URL_BASE}/reading-clubs/${id}`,
-    {
-      headers,
-    }
+  const { data } = await apiClient.get<ClubRecord>(
+    `/reading-clubs/${toPathSegment(id)}`
   );
   return (data ?? null) as ClubRecord | null;
 };
@@ -118,16 +102,12 @@ export const updateReadingClub = async (
   id: string | number,
   clubData: Record<string, Serializable | undefined | null>
 ): Promise<ClubRecord | null> => {
-  const headers = getAuthHeaders();
-  if (!headers) return null;
+  if (!requireAuth()) return null;
 
   const payload = sanitizePayload(clubData);
-  const { data } = await axios.patch<ClubRecord>(
-    `${URL_BASE}/reading-clubs/${id}`,
-    payload,
-    {
-      headers,
-    }
+  const { data } = await apiClient.patch<ClubRecord>(
+    `/reading-clubs/${toPathSegment(id)}`,
+    payload
   );
   return (data ?? null) as ClubRecord | null;
 };
@@ -135,14 +115,10 @@ export const updateReadingClub = async (
 export const deleteReadingClub = async (
   id: string | number
 ): Promise<ClubRecord | null> => {
-  const headers = getAuthHeaders();
-  if (!headers) return null;
+  if (!requireAuth()) return null;
 
-  const { data } = await axios.delete<ClubRecord>(
-    `${URL_BASE}/reading-clubs/${id}`,
-    {
-      headers,
-    }
+  const { data } = await apiClient.delete<ClubRecord>(
+    `/reading-clubs/${toPathSegment(id)}`
   );
   return (data ?? null) as ClubRecord | null;
 };
@@ -151,15 +127,11 @@ export const joinReadingClub = async (
   clubId: string | number,
   userId: string | number
 ): Promise<ClubRecord | null> => {
-  const headers = getAuthHeaders();
-  if (!headers) return null;
+  if (!requireAuth()) return null;
 
-  const { data } = await axios.post<ClubRecord>(
-    `${URL_BASE}/reading-clubs/${clubId}/join/${userId}`,
-    {},
-    {
-      headers,
-    }
+  const { data } = await apiClient.post<ClubRecord>(
+    `/reading-clubs/${toPathSegment(clubId)}/join/${toPathSegment(userId)}`,
+    {}
   );
   return (data ?? null) as ClubRecord | null;
 };
@@ -168,16 +140,12 @@ export const startDebate = async (
   clubId: string | number,
   debateData: Record<string, Serializable | undefined | null>
 ): Promise<ClubRecord | null> => {
-  const headers = getAuthHeaders();
-  if (!headers) return null;
+  if (!requireAuth()) return null;
 
   const payload = sanitizePayload(debateData);
-  const { data } = await axios.post<ClubRecord>(
-    `${URL_BASE}/reading-clubs/${clubId}/debates`,
-    payload,
-    {
-      headers,
-    }
+  const { data } = await apiClient.post<ClubRecord>(
+    `/reading-clubs/${toPathSegment(clubId)}/debates`,
+    payload
   );
   return (data ?? null) as ClubRecord | null;
 };
@@ -186,16 +154,12 @@ export const addDebateMessage = async (
   debateId: string | number,
   messageData: Record<string, Serializable | undefined | null>
 ): Promise<ClubRecord | null> => {
-  const headers = getAuthHeaders();
-  if (!headers) return null;
+  if (!requireAuth()) return null;
 
   const payload = sanitizePayload(messageData);
-  const { data } = await axios.post<ClubRecord>(
-    `${URL_BASE}/reading-clubs/debates/${debateId}/messages`,
-    payload,
-    {
-      headers,
-    }
+  const { data } = await apiClient.post<ClubRecord>(
+    `/reading-clubs/debates/${toPathSegment(debateId)}/messages`,
+    payload
   );
   return (data ?? null) as ClubRecord | null;
 };
@@ -203,14 +167,10 @@ export const addDebateMessage = async (
 export const isModerator = async (
   clubId: string | number
 ): Promise<boolean | ClubRecord | null> => {
-  const headers = getAuthHeaders();
-  if (!headers) return null;
+  if (!requireAuth()) return null;
 
-  const { data } = await axios.get<boolean | ClubRecord>(
-    `${URL_BASE}/reading-clubs/moderator/${clubId}`,
-    {
-      headers,
-    }
+  const { data } = await apiClient.get<boolean | ClubRecord>(
+    `/reading-clubs/moderator/${toPathSegment(clubId)}`
   );
   return data ?? null;
 };
