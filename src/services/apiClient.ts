@@ -1,6 +1,6 @@
 'use client';
 
-import axios from 'axios';
+import axios, { AxiosHeaders } from 'axios';
 import { URL_BASE } from '@/constants/global';
 import { useAuthStore } from '@/stores/authStore';
 
@@ -21,32 +21,12 @@ apiClient.interceptors.request.use(
   (config) => {
     const token = resolveAuthToken();
     if (token) {
-      const existingHeaders = config.headers;
-      const isAxiosHeaders =
-        existingHeaders &&
-        typeof (existingHeaders as { set?: unknown }).set === 'function';
-
-      if (isAxiosHeaders) {
-        const axiosHeaders = existingHeaders as {
-          set: (key: string, value: string) => void;
-          has?: (key: string) => boolean;
-          get?: (key: string) => string | null;
-        };
-        const hasAuthorization =
-          (typeof axiosHeaders.has === 'function' && axiosHeaders.has('Authorization')) ||
-          (typeof axiosHeaders.get === 'function' &&
-            Boolean(axiosHeaders.get('Authorization')));
-
-        if (!hasAuthorization) {
-          axiosHeaders.set('Authorization', `Bearer ${token}`);
-        }
-      } else {
-        const headers = (existingHeaders ?? {}) as Record<string, unknown>;
-        if (!headers.Authorization) {
-          headers.Authorization = `Bearer ${token}`;
-        }
-        config.headers = headers;
+      const headers = AxiosHeaders.from(config.headers ?? undefined);
+      const currentAuth = headers.get('Authorization');
+      if (!currentAuth) {
+        headers.set('Authorization', `Bearer ${token}`);
       }
+      config.headers = headers;
     }
     return config;
   },

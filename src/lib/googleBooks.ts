@@ -8,6 +8,7 @@ export type GoogleVolume = {
     publishedDate?: string;
     pageCount?: number;
     categories?: string[];
+    printType?: string;
     imageLinks?: {
       small?: string;
       thumbnail?: string;

@@ -13,6 +13,7 @@ import {
   getGoogleBookById,
   updateBook,
 } from '@/services/bookService';
+import type { BookRecord } from '@/services/bookService';
 import {
   createReadingState,
   getReadingStatesByUser,
@@ -36,6 +37,22 @@ type LocalBook = {
   status?: 'pending' | 'reading' | 'read' | string;
   description?: string;
   publishedDate?: string;
+};
+
+const mapBookRecordToLocalBook = (record: BookRecord): LocalBook => {
+  const publishedDate = record['publishedDate'];
+  return {
+    id: record.id,
+    title: typeof record.title === 'string' ? record.title : undefined,
+    authors: coerceAuthors(record.authors),
+    isbn: typeof record.isbn === 'string' ? record.isbn : undefined,
+    cover: typeof record.cover === 'string' ? record.cover : undefined,
+    status: typeof record.status === 'string' ? record.status : undefined,
+    description:
+      typeof record.description === 'string' ? record.description : undefined,
+    publishedDate:
+      typeof publishedDate === 'string' ? publishedDate : undefined,
+  };
 };
 
 type UiStatus = 'to-read' | 'reading' | 'completed';
@@ -83,34 +100,38 @@ const extractPrimaryIsbn = (volume: GoogleVolume | null): string | undefined => 
   )?.identifier;
 };
 
-const formatAuthors = (value: unknown): string => {
+const coerceAuthors = (value: unknown): string | undefined => {
   if (Array.isArray(value)) {
     const names = value
-      .map((item) =>
-        typeof item === 'string'
-          ? item.trim()
-          : typeof item === 'number'
-            ? String(item)
-            : '',
-      )
-      .filter(Boolean);
+      .map((item) => {
+        if (typeof item === 'string') return item.trim();
+        if (typeof item === 'number') return String(item);
+        return '';
+      })
+      .filter((entry): entry is string => entry.length > 0);
     if (names.length) {
       return names.join(', ');
     }
+    return undefined;
   }
   if (typeof value === 'string') {
-    const names = value
+    const trimmed = value.trim();
+    if (!trimmed) return undefined;
+    const entries = trimmed
       .split(',')
       .map((entry) => entry.trim())
-      .filter(Boolean);
-    if (names.length) {
-      return names.join(', ');
+      .filter((entry) => entry.length > 0);
+    if (entries.length) {
+      return entries.join(', ');
     }
-    if (value.trim()) {
-      return value.trim();
-    }
+    return trimmed;
   }
-  return 'Unknown author';
+  return undefined;
+};
+
+const formatAuthors = (value: unknown): string => {
+  const normalized = coerceAuthors(value);
+  return normalized ?? 'Unknown author';
 };
 
 const formatDate = (value?: string | null): string => {
@@ -192,20 +213,22 @@ const BookDetailPage = () => {
         const localBook = await getBookById(decodedId);
         if (!ignore && localBook) {
           setSource('local');
-          setBook(localBook);
+          const normalizedBook = mapBookRecordToLocalBook(localBook);
+          setBook(normalizedBook);
           setBookIdentifier(
-            typeof localBook.title === 'string' && localBook.title.trim()
-              ? localBook.title
+            typeof normalizedBook.title === 'string' && normalizedBook.title.trim()
+              ? normalizedBook.title
               : null,
           );
           setForm({
-            title: localBook.title ?? '',
-            authors: localBook.authors ?? '',
-            isbn: localBook.isbn ?? '',
-            cover: localBook.cover ?? '',
-            status: (localBook.status as LocalBook['status']) ?? 'pending',
-            description: localBook.description ?? '',
-            publishedDate: localBook.publishedDate ?? '',
+            title: normalizedBook.title ?? '',
+            authors: normalizedBook.authors ?? '',
+            isbn: normalizedBook.isbn ?? '',
+            cover: normalizedBook.cover ?? '',
+            status:
+              (normalizedBook.status as LocalBook['status']) ?? 'pending',
+            description: normalizedBook.description ?? '',
+            publishedDate: normalizedBook.publishedDate ?? '',
           });
           return;
         }
@@ -360,7 +383,8 @@ const BookDetailPage = () => {
       setEditing(false);
       setBook((prev) => {
         if (!updated) return prev ? { ...prev, ...form } : prev;
-        return { ...(prev ?? {}), ...updated };
+        const normalized = mapBookRecordToLocalBook(updated);
+        return { ...(prev ?? {}), ...normalized };
       });
       const nextIdentifier =
         (updated && typeof updated.title === 'string' && updated.title.trim()
