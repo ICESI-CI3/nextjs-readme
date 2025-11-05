@@ -27,6 +27,6 @@
                             "typescript":  "^5"
                         },
     "engines":  {
-                    "node":  "18.x"
+                    "node":  "\u003e=20.9.0 \u003c21"
                 }
 }
