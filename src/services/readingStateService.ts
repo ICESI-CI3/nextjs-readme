@@ -45,7 +45,22 @@ export async function upsertReadingState(params: {
 }
 
 // ===== Your existing functions (kept as-is, typed)
-export const createReadingState = async (readingStateData: any) => {
+type ReadingStateCreatePayload = {
+  status: UiStatus | ApiStatus | string;
+  bookId?: string | number;
+  googleId?: string;
+  userId?: string | number;
+  notes?: string;
+  [key: string]: unknown;
+};
+
+type ReadingStateUpdatePayload = {
+  status?: UiStatus | ApiStatus | string;
+  notes?: string | null;
+  [key: string]: unknown;
+};
+
+export const createReadingState = async (readingStateData: ReadingStateCreatePayload) => {
   const token = getAuthToken();
   if (!token) return null;
 
@@ -78,7 +93,7 @@ export const getReadingStatesByUser = async (userId: string) => {
   return data;
 };
 
-export const updateReadingState = async (id: string, updateData: any) => {
+export const updateReadingState = async (id: string, updateData: ReadingStateUpdatePayload) => {
   const token = getAuthToken();
   if (!token) return null;
 

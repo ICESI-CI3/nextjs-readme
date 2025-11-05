@@ -137,6 +137,14 @@ export const fetchTopReaderReport = async (): Promise<TopReaderReport | null> =>
 
   const username =
     typeof data.username === 'string' && data.username.trim().length ? data.username : 'No reader found';
-  const booksRead = coerceNumber(data.booksRead);
+  const booksReadValue =
+    'booksRead' in data
+      ? (data as Record<string, unknown>).booksRead
+      : 'booksread' in data
+        ? (data as Record<string, unknown>).booksread
+        : 'count' in data
+          ? (data as Record<string, unknown>).count
+          : undefined;
+  const booksRead = coerceNumber(booksReadValue);
   return { username, booksRead };
 };

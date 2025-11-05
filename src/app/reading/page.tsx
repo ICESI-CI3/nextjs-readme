@@ -378,7 +378,7 @@ const ReadingLogPage = () => {
             <Link className="font-semibold text-blue-600 hover:text-blue-700" href="/books">
               Books
             </Link>{' '}
-            and click 'Save to reading log' from any title to add it here. Administrators can also register internal
+            and click &lsquo;Save to reading log&rsquo; from any title to add it here. Administrators can also register internal
             catalog titles from this page.
           </p>
         </div>
