@@ -5,6 +5,6 @@ export default defineConfig({
     baseUrl: "http://localhost:3000",
     video: false,
     screenshotOnRunFailure: true,
-    supportFile: false,
+    supportFile: "cypress/support/index.ts",
   },
 });
